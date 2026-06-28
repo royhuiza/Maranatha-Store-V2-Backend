@@ -1,0 +1,90 @@
+resilience4j:
+  circuitbreaker:
+    instances:
+      productoService:
+        register-health-indicator: true
+        sliding-window-size: 10
+        sliding-window-type: COUNT_BASED
+        minimum-number-of-calls: 5
+        permitted-number-of-calls-in-half-open-state: 3
+        automatic-transition-from-open-to-half-open-enabled: true
+        wait-duration-in-open-state: 10s
+        failure-rate-threshold: 50
+        slow-call-rate-threshold: 50
+        slow-call-duration-threshold: 2s
+        event-consumer-buffer-size: 10
+        record-exceptions:
+          - org.springframework.web.client.HttpServerErrorException
+          - java.io.IOException
+          - feign.FeignException
+        ignore-exceptions:
+          - java.lang.IllegalArgumentException
+          - com.libreria.ventas.exception.BusinessException
+
+      clienteService:
+        register-health-indicator: true
+        sliding-window-size: 10
+        minimum-number-of-calls: 5
+        permitted-number-of-calls-in-half-open-state: 3
+        wait-duration-in-open-state: 10s
+        failure-rate-threshold: 50
+        event-consumer-buffer-size: 10
+
+  retry:
+    instances:
+      productoService:
+        max-attempts: 3
+        wait-duration: 1s
+        retry-exceptions:
+          - org.springframework.web.client.ResourceAccessException
+          - java.net.SocketTimeoutException
+          - feign.RetryableException
+        ignore-exceptions:
+          - java.lang.IllegalArgumentException
+
+      clienteService:
+        max-attempts: 3
+        wait-duration: 1s
+        retry-exceptions:
+          - org.springframework.web.client.ResourceAccessException
+          - feign.RetryableException
+
+  bulkhead:
+    instances:
+      productoService:
+        max-concurrent-calls: 10
+        max-wait-duration: 10ms
+
+      clienteService:
+        max-concurrent-calls: 10
+        max-wait-duration: 10ms
+
+  thread-pool-bulkhead:
+    instances:
+      clienteService:
+        max-thread-pool-size: 4
+        core-thread-pool-size: 2
+        queue-capacity: 2
+        keep-alive-duration: 20ms
+
+  timelimiter:
+    instances:
+      productoService:
+        timeout-duration: 3s
+        cancel-running-future: true
+
+      clienteService:
+        timeout-duration: 3s
+        cancel-running-future: true
+
+  ratelimiter:
+    instances:
+      productoService:
+        limit-for-period: 10
+        limit-refresh-period: 1s
+        timeout-duration: 500ms
+
+      clienteService:
+        limit-for-period: 5
+        limit-refresh-period: 1s
+        timeout-duration: 500ms

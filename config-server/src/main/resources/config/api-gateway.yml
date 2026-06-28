@@ -1,0 +1,37 @@
+server:
+  port: 8080
+
+spring:
+  cloud:
+    gateway:
+      discovery:
+        locator:
+          enabled: true
+          lower-case-service-id: true
+      routes:
+        - id: ms-auth
+          uri: lb://ms-auth
+          predicates:
+            - Path=/api/auth/**
+        - id: ms-cliente
+          uri: lb://ms-cliente
+          predicates:
+            - Path=/api/clientes/**
+        - id: ms-producto
+          uri: lb://ms-producto
+          predicates:
+            - Path=/api/productos/**
+        - id: ms-ventas
+          uri: lb://ms-ventas
+          predicates:
+            - Path=/api/ventas/**
+
+jwt:
+  secret: 404E635266556A586E3272357538782F413F4428472B4B6250645367566B5970
+
+eureka:
+  client:
+    service-url:
+      defaultZone: http://localhost:8761/eureka/
+    fetch-registry: true
+    register-with-eureka: true
