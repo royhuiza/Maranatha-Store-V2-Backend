@@ -27,6 +27,10 @@ public class Producto {
     @Column(nullable = false, precision = 12, scale = 2)
     private BigDecimal precio;
 
+    @Enumerated(EnumType.STRING)
+    @Column(name = "afectacion_igv", length = 20)
+    private TipoAfectacionIgv afectacionIgv;
+
     @NotNull(message = "El stock es obligatorio")
     @Min(value = 0, message = "El stock no puede ser negativo")
     @Column(nullable = false)
@@ -53,4 +57,12 @@ public class Producto {
     public Boolean getActivo() { return activo; }
     public void setActivo(Boolean activo) { this.activo = activo; }
     public Long getVersion() { return version; }
+
+    public TipoAfectacionIgv getAfectacionIgv() {
+        return afectacionIgv;
+    }
+
+    public void setAfectacionIgv(TipoAfectacionIgv afectacionIgv) {
+        this.afectacionIgv = afectacionIgv;
+    }
 }

@@ -9,6 +9,7 @@ import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import com.libreria.producto.dto.AfectacionIgvRequest;
 
 import java.util.List;
 
@@ -54,6 +55,20 @@ public class ProductoController {
     public Producto reponer(@PathVariable Long id, @Valid @RequestBody StockRequest request) {
         return service.reponerStock(id, request.getCantidad());
     }
+
+
+    @PatchMapping("/{id}/afectacion-igv")
+    @Operation(summary = "Actualizar clasificacion tributaria del producto")
+    public Producto actualizarAfectacionIgv(
+            @PathVariable Long id,
+            @Valid @RequestBody AfectacionIgvRequest request) {
+
+        return service.actualizarAfectacionIgv(
+                id,
+                request.afectacionIgv()
+        );
+    }
+
 
     @DeleteMapping("/{id}")
     @Operation(summary = "Eliminar producto")

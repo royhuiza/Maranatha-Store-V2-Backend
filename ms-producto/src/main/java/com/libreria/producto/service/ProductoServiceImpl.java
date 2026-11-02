@@ -9,6 +9,7 @@ import org.springframework.web.server.ResponseStatusException;
 
 import java.math.RoundingMode;
 import java.util.List;
+import com.libreria.producto.model.TipoAfectacionIgv;
 
 @Service
 public class ProductoServiceImpl implements ProductoService {
@@ -34,6 +35,25 @@ public class ProductoServiceImpl implements ProductoService {
 
     @Override
     @Transactional
+    public Producto actualizarAfectacionIgv(
+            Long id,
+            TipoAfectacionIgv afectacionIgv) {
+
+        if (afectacionIgv == null) {
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST,
+                    "La clasificacion tributaria es obligatoria"
+            );
+        }
+
+        Producto producto = obtenerProducto(id);
+        producto.setAfectacionIgv(afectacionIgv);
+
+        return repository.save(producto);
+    }
+
+    @Override
+    @Transactional
     public Producto crearProducto(Producto producto) {
         producto.setId(null);
         producto.setNombre(producto.getNombre().trim());
@@ -43,17 +63,40 @@ public class ProductoServiceImpl implements ProductoService {
         return repository.save(producto);
     }
 
+
     @Override
     @Transactional
     public Producto actualizarProducto(Long id, Producto cambios) {
+
         Producto producto = obtenerProducto(id);
+
         producto.setNombre(cambios.getNombre().trim());
-        producto.setDescripcion(normalizar(cambios.getDescripcion()));
-        producto.setPrecio(cambios.getPrecio().setScale(2, RoundingMode.HALF_UP));
+
+        producto.setDescripcion(
+                normalizar(cambios.getDescripcion())
+        );
+
+        producto.setPrecio(
+                cambios.getPrecio().setScale(2, RoundingMode.HALF_UP)
+        );
+
         producto.setStock(cambios.getStock());
-        if (cambios.getActivo() != null) producto.setActivo(cambios.getActivo());
+
+        if (cambios.getActivo() != null) {
+            producto.setActivo(cambios.getActivo());
+        }
+
+        // Actualizar la clasificación tributaria únicamente
+        // cuando el cliente envíe un valor.
+        if (cambios.getAfectacionIgv() != null) {
+            producto.setAfectacionIgv(
+                    cambios.getAfectacionIgv()
+            );
+        }
+
         return repository.save(producto);
     }
+
 
     @Override
     @Transactional

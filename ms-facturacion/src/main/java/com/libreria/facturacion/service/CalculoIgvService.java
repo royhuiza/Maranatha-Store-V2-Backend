@@ -4,6 +4,7 @@ import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import com.libreria.facturacion.dto.TipoAfectacionIgv;
 
 @Service
 public class CalculoIgvService {
@@ -41,6 +42,43 @@ public class CalculoIgvService {
         return base.add(igv)
                 .setScale(2, RoundingMode.HALF_UP);
     }
+
+    public ResultadoIgv calcularPorAfectacion(
+            BigDecimal precioFinal,
+            TipoAfectacionIgv afectacionIgv
+    ) {
+        validarPrecio(precioFinal);
+
+        if (afectacionIgv == null) {
+            throw new IllegalArgumentException(
+                    "La clasificación tributaria es obligatoria"
+            );
+        }
+
+        BigDecimal total = precioFinal.setScale(
+                2, RoundingMode.HALF_UP
+        );
+
+        if (afectacionIgv == TipoAfectacionIgv.GRAVADO) {
+            BigDecimal base = calcularBaseImponible(total);
+            BigDecimal igv = total.subtract(base);
+
+            return new ResultadoIgv(base, igv, total);
+        }
+
+        // Operaciones exoneradas o inafectas.
+        return new ResultadoIgv(
+                total,
+                BigDecimal.ZERO.setScale(2),
+                total
+        );
+    }
+
+    public record ResultadoIgv(
+            BigDecimal base,
+            BigDecimal igv,
+            BigDecimal total
+    ) {}
 
     private void validarPrecio(BigDecimal precio) {
         if (precio == null || precio.signum() < 0) {

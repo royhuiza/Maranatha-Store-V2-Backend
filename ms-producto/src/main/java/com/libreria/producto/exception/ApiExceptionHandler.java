@@ -12,9 +12,15 @@ import org.springframework.web.server.ResponseStatusException;
 import java.time.LocalDateTime;
 import java.util.Map;
 import java.util.stream.Collectors;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 @RestControllerAdvice
 public class ApiExceptionHandler {
+
+    private static final Logger log =
+            LoggerFactory.getLogger(ApiExceptionHandler.class);
+
     @ExceptionHandler(MethodArgumentNotValidException.class)
     ResponseEntity<Map<String, Object>> validation(MethodArgumentNotValidException ex) {
         String message = ex.getBindingResult().getFieldErrors().stream()
@@ -31,7 +37,12 @@ public class ApiExceptionHandler {
     }
     @ExceptionHandler(Exception.class)
     ResponseEntity<Map<String, Object>> generic(Exception ex) {
-        return response(HttpStatus.INTERNAL_SERVER_ERROR, "Error interno al procesar el producto");
+        log.error("Error inesperado al procesar el producto", ex);
+
+        return response(
+                HttpStatus.INTERNAL_SERVER_ERROR,
+                "Error interno al procesar el producto"
+        );
     }
     private ResponseEntity<Map<String, Object>> response(HttpStatus status, String message) {
         return ResponseEntity.status(status).body(Map.of("timestamp", LocalDateTime.now().toString(),

@@ -1,4 +1,10 @@
+
 package com.libreria.facturacion.service;
 
-public class ConsultaRucService {
+import com.libreria.facturacion.dto.ConsultaRucResponse;
+
+public interface ConsultaRucService {
+
+    ConsultaRucResponse consultarPorRuc(String ruc);
+
 }
