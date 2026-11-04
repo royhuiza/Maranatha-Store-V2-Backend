@@ -17,6 +17,22 @@ services:
       interval: 5s
       timeout: 5s
       retries: 20
+    networks:
+      - maranatha-net
+
+  redis:
+    image: redis:7-alpine
+    container_name: maranatha-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    networks:
+      - maranatha-net
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
 
   ms-auth:
     build:
@@ -34,6 +50,8 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+    networks:
+      - maranatha-net
 
   ms-producto:
     build:
@@ -50,6 +68,8 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+    networks:
+      - maranatha-net
 
   ms-cliente:
     build:
@@ -66,6 +86,8 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+    networks:
+      - maranatha-net
 
   ms-ventas:
     build:
@@ -88,6 +110,39 @@ services:
         condition: service_started
       ms-cliente:
         condition: service_started
+    networks:
+      - maranatha-net
+
+  ms-chat:
+    build:
+      context: .
+      dockerfile: ms-chat/Dockerfile
+    container_name: maranatha-chat
+    environment:
+      SERVER_PORT: 8085
+      EUREKA_ENABLED: "false"
+      N8N_URL: http://maranatha-n8n:5678/webhook/maranatha-chat
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    ports: ["8085:8085"]
+    depends_on: []
+    networks:
+      - maranatha-net
+
+  maranatha-n8n:
+    image: n8nio/n8n:latest
+    container_name: maranatha-n8n
+    restart: unless-stopped
+    ports:
+      - "5678:5678"
+    environment:
+      - N8N_BASIC_AUTH_ACTIVE=false
+      - N8N_HOST=maranatha-n8n
+      - N8N_PORT=5678
+      - N8N_PROTOCOL=http
+      - NODE_ENV=production
+    networks:
+      - maranatha-net
 
   api-gateway:
     build:
@@ -100,6 +155,7 @@ services:
       PRODUCTO_SERVICE_URL: http://ms-producto:8082
       CLIENTE_SERVICE_URL: http://ms-cliente:8083
       VENTAS_SERVICE_URL: http://ms-ventas:8084
+      CHAT_SERVICE_URL: http://ms-chat:8085
       JWT_SECRET: MaranathaStoreClaveSuperSeguraJWT2026Maranatha
       EUREKA_ENABLED: "false"
     ports: ["8080:8080"]
@@ -108,6 +164,35 @@ services:
       - ms-producto
       - ms-cliente
       - ms-ventas
+      - ms-chat
+    networks:
+      - maranatha-net
+
+  maranatha-whatsapp:
+    image: evoapicloud/evolution-api:latest
+    container_name: maranatha-whatsapp
+    restart: always
+    ports:
+      - "8086:8080"
+    environment:
+      - SERVER_URL=http://localhost:8086
+      - DOCKER_ENV=true
+      - API_KEY=maranatha_secret_key_2026
+      - AUTHENTICATION_API_KEY=maranatha_secret_key_2026
+      - DATABASE_ENABLED=true
+      - DATABASE_PROVIDER=postgresql
+      - DATABASE_CONNECTION_URI=postgresql://postgres:admin123@postgres:5432/postgres?schema=public
+      - DATABASE_CLIENT_NAME=evolution_db
+      - CACHE_REDIS_ENABLED=true
+      - CACHE_REDIS_URI=redis://maranatha-redis:6379/6
+      - CACHE_REDIS_PREFIX_KEY=evolution
+    depends_on:
+      - postgres
+      - redis
+
+networks:
+  maranatha-net:
+    driver: bridge
 
 volumes:
   postgres_data:

@@ -32,6 +32,7 @@
         <module>ms-producto</module>
         <module>ms-cliente</module>
         <module>ms-ventas</module>
+        <module>ms-chat</module>
     </modules>
 
     <dependencyManagement>
