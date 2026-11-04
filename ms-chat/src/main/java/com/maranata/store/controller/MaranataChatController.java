@@ -10,6 +10,7 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.CrossOrigin;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -73,5 +74,30 @@ public class MaranataChatController {
         }
 
         return ResponseEntity.ok().build();
+    }
+
+    @GetMapping("/whatsapp/qr")
+    public ResponseEntity<String> getWhatsAppQr() {
+        String instanceName = "maranatha-store";
+        String evolutionUrl = "http://maranatha-whatsapp:8080/instance/connect/" + instanceName;
+
+        HttpHeaders headers = new HttpHeaders();
+        headers.set("apikey", "maranatha_secret_key_2026");
+        headers.setContentType(MediaType.APPLICATION_JSON);
+
+        HttpEntity<Void> entity = new HttpEntity<>(headers);
+
+        try {
+            ResponseEntity<String> response = restTemplate.exchange(
+                    evolutionUrl,
+                    org.springframework.http.HttpMethod.GET,
+                    entity,
+                    String.class
+            );
+            return ResponseEntity.status(response.getStatusCode()).body(response.getBody());
+        } catch (Exception ex) {
+            return ResponseEntity.internalServerError()
+                    .body("{\"error\":\"No se pudo obtener el código QR de WhatsApp\"}");
+        }
     }
 }
