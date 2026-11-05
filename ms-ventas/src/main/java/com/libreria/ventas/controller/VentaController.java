@@ -49,10 +49,20 @@ public class VentaController {
     @Operation(summary = "Anular venta y reponer stock")
     public Venta anularVenta(@PathVariable Long id) { return ventaService.anularVenta(id); }
 
+    @DeleteMapping("/{id}")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    @Operation(summary = "Eliminar un registro interno anulado, sin pago y no fiscal")
+    public void eliminarVenta(@PathVariable Long id) { ventaService.eliminarVenta(id); }
+
     @GetMapping("/cliente/{clienteId}")
     @Operation(summary = "Comprobar comunicación con clientes")
     public ClienteDTO obtenerCliente(@PathVariable Long clienteId) {
         return clienteClient.obtenerCliente(clienteId);
+    }
+
+    @GetMapping("/producto/{productoId}/asociado")
+    public boolean tieneVentas(@PathVariable Long productoId) {
+        return ventaService.tieneVentas(productoId);
     }
 
     @GetMapping("/producto/{productoId}")

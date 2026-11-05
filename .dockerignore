@@ -4,3 +4,6 @@
 **/*.iml
 .git
 .gitignore
+
+.env
+.env.*

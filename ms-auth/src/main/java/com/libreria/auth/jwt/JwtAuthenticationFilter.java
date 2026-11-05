@@ -19,9 +19,10 @@ import java.util.List;
 public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
     private final JwtService jwtService;
+    private final com.libreria.auth.repository.UsuarioRepository users;
 
-    public JwtAuthenticationFilter(JwtService jwtService) {
-        this.jwtService = jwtService;
+    public JwtAuthenticationFilter(JwtService jwtService, com.libreria.auth.repository.UsuarioRepository users) {
+        this.jwtService = jwtService; this.users = users;
     }
 
     @Override
@@ -32,7 +33,8 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                 && SecurityContextHolder.getContext().getAuthentication() == null) {
             try {
                 Claims claims = jwtService.parse(header.substring(7));
-                String role = claims.get("role", String.class);
+                var user = users.findOptionalByUsernameIgnoreCase(claims.getSubject()).orElseThrow();
+                String role = "ROLE_" + user.getRol().name();
                 UsernamePasswordAuthenticationToken authentication =
                         new UsernamePasswordAuthenticationToken(
                                 claims.getSubject(), null,

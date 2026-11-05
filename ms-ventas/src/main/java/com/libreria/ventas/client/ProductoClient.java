@@ -6,6 +6,7 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestTemplate;
 
 import java.util.Map;
+import java.util.UUID;
 
 @Component
 public class ProductoClient {
@@ -24,6 +25,11 @@ public class ProductoClient {
     public ProductoDTO descontarStock(Long productoId, int cantidad) {
         return restTemplate.postForObject(baseUrl + "/productos/" + productoId + "/stock/descontar",
                 Map.of("cantidad", cantidad), ProductoDTO.class);
+    }
+
+    public void aplicarStockVenta(UUID idOperacion, Map<Long, Integer> cantidades, boolean reversa) {
+        String operacion = reversa ? "revertir" : "descontar";
+        restTemplate.postForLocation(baseUrl + "/productos/stock/venta/" + idOperacion + "/" + operacion, cantidades);
     }
 
     public ProductoDTO reponerStock(Long productoId, int cantidad) {

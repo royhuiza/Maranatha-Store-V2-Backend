@@ -13,4 +13,8 @@ public interface VentaRepository extends JpaRepository<Venta, Long> {
 
     @EntityGraph(attributePaths = "detalles")
     Optional<Venta> findOneById(Long id);
+
+    @org.springframework.data.jpa.repository.Lock(jakarta.persistence.LockModeType.PESSIMISTIC_WRITE)
+    @org.springframework.data.jpa.repository.Query("select v from Venta v where v.id = :id")
+    Optional<Venta> findLockedById(@org.springframework.data.repository.query.Param("id") Long id);
 }

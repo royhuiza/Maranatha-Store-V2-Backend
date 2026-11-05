@@ -45,9 +45,9 @@ public class SecurityConfig {
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authenticationProvider(provider)
                 .authorizeHttpRequests(auth -> auth
-                        .requestMatchers("/auth/login", "/auth/register", "/auth/test",
+                        .requestMatchers("/auth/password/forgot", "/auth/password/reset", "/auth/login", "/auth/test",
                                 "/swagger-ui/**", "/swagger-ui.html", "/api-docs/**").permitAll()
-                        .requestMatchers("/auth/usuarios/**").hasRole("ADMIN")
+                        .requestMatchers("/auth/register", "/auth/usuarios", "/auth/usuarios/**").hasRole("ADMIN")
                         .anyRequest().authenticated())
                 .addFilterBefore(jwtFilter, UsernamePasswordAuthenticationFilter.class)
                 .build();

@@ -20,7 +20,7 @@ import java.util.List;
 public class JwtAuthFilter implements GlobalFilter, Ordered {
 
     private static final List<String> PUBLIC_PREFIXES = List.of(
-            "/auth/login", "/auth/register", "/auth/test",
+            "/auth/password/forgot", "/auth/password/reset", "/auth/login", "/auth/test",
             "/swagger-ui", "/webjars", "/docs/", "/actuator", "/favicon"
     );
 

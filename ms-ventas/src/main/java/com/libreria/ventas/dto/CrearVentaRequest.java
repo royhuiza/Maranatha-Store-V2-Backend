@@ -9,6 +9,9 @@ import java.util.ArrayList;
 import java.util.List;
 
 public class CrearVentaRequest {
+    private com.libreria.ventas.model.MetodoPago metodoPago;
+    public com.libreria.ventas.model.MetodoPago getMetodoPago() { return metodoPago; }
+    public void setMetodoPago(com.libreria.ventas.model.MetodoPago value) { metodoPago = value; }
     private Long clienteId;
     @NotNull(message = "El tipo de comprobante es obligatorio")
     private TipoComprobante tipoComprobante = TipoComprobante.BOLETA;

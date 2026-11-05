@@ -29,6 +29,16 @@ public class ApiExceptionHandler {
     ResponseEntity<Map<String, Object>> integrity(DataIntegrityViolationException ex) {
         return response(HttpStatus.CONFLICT, "No se puede eliminar o guardar el producto por datos relacionados");
     }
+    @ExceptionHandler(org.springframework.web.multipart.MaxUploadSizeExceededException.class)
+    ResponseEntity<Map<String, Object>> archivoGrande() {
+        return response(HttpStatus.PAYLOAD_TOO_LARGE, "El archivo Excel no puede superar 5 MB.");
+    }
+    @ExceptionHandler({org.springframework.web.bind.MissingServletRequestParameterException.class,
+            org.springframework.web.multipart.support.MissingServletRequestPartException.class,
+            org.springframework.http.converter.HttpMessageNotReadableException.class})
+    ResponseEntity<Map<String, Object>> solicitudInvalida() {
+        return response(HttpStatus.BAD_REQUEST, "Revisa los datos enviados en la solicitud.");
+    }
     @ExceptionHandler(Exception.class)
     ResponseEntity<Map<String, Object>> generic(Exception ex) {
         return response(HttpStatus.INTERNAL_SERVER_ERROR, "Error interno al procesar el producto");
