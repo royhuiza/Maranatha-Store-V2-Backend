@@ -33,6 +33,7 @@
         <module>ms-cliente</module>
         <module>ms-ventas</module>
         <module>ms-facturacion</module>
+        <module>ms-chat</module>
     </modules>
 
     <dependencyManagement>

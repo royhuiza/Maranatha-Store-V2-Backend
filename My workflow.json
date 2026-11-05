@@ -1,0 +1,163 @@
+{
+  "name": "My workflow",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "maranatha-chat",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.2,
+      "position": [
+        0,
+        0
+      ],
+      "id": "eb64e225-0502-4899-a0fd-3696d5d0d575",
+      "name": "Webhook",
+      "webhookId": "09c8d81a-b9d0-4a9d-a0b6-9f7fcad4a6a4"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $json.body?.message || $json.message }}",
+        "options": {
+          "systemMessage": "Eres el Asistente Virtual Oficial de \"Maranata Store\". Tu objetivo es orientar a los clientes sobre productos, catálogo, consultas de stock y soporte de ventas de la tienda utilizando las herramientas disponibles. No te presentes como una IA genérica."
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3.1,
+      "position": [
+        224,
+        0
+      ],
+      "id": "58a6098b-083c-4195-b9cc-cae9d23ae82b",
+      "name": "AI Agent"
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+      "typeVersion": 1.2,
+      "position": [
+        96,
+        208
+      ],
+      "id": "93aebe46-28fc-489f-b96a-32b26a585d3a",
+      "name": "Google Gemini Chat Model",
+      "credentials": {
+        "googlePalmApi": {
+          "id": "aMj6l1dKcgtt0PSp",
+          "name": "Google Gemini(PaLM) Api account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "respondWith": "text",
+        "responseBody": "={{ JSON.stringify({ \"reply\": $json.output || $json.text || \"Sin respuesta\" }) }}",
+        "options": {
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "Content-Type",
+                "value": "application/json"
+              }
+            ]
+          }
+        }
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [
+        592,
+        0
+      ],
+      "id": "c143cfd6-8307-4e63-bdd0-296667fca567",
+      "name": "Respond to Webhook"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT id, nombre, descripcion, precio, stock FROM productos WHERE activo = true;",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgresTool",
+      "typeVersion": 2.8,
+      "position": [
+        416,
+        192
+      ],
+      "id": "da17700c-5551-483d-bf52-350a33188711",
+      "name": "Execute a SQL query in Postgres1",
+      "credentials": {
+        "postgres": {
+          "id": "sQWVIoDhhxSOTtwS",
+          "name": "Postgres account"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Google Gemini Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Agent": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Execute a SQL query in Postgres1": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "versionId": "d321a3f8-8d2b-49fa-b559-5b7451f606db",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "1f1c34e03d715585f7c68b2ab2f59dcf295a0ee52e94c8ab70378511eb66af99"
+  },
+  "nodeGroups": [],
+  "id": "Y6KYQWATp2GanWTa",
+  "tags": []
+}
