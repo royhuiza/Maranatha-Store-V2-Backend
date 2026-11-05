@@ -52,6 +52,8 @@ services:
         condition: service_healthy
     networks:
       - maranatha-net
+    volumes:
+      - ~/.m2:/root/.m2
 
   ms-producto:
     build:
@@ -70,6 +72,8 @@ services:
         condition: service_healthy
     networks:
       - maranatha-net
+    volumes:
+      - ~/.m2:/root/.m2
 
   ms-cliente:
     build:
@@ -88,6 +92,8 @@ services:
         condition: service_healthy
     networks:
       - maranatha-net
+    volumes:
+      - ~/.m2:/root/.m2
 
   ms-ventas:
     build:
@@ -112,6 +118,8 @@ services:
         condition: service_started
     networks:
       - maranatha-net
+    volumes:
+      - ~/.m2:/root/.m2
 
   ms-chat:
     build:
@@ -128,6 +136,8 @@ services:
     depends_on: []
     networks:
       - maranatha-net
+    volumes:
+      - ~/.m2:/root/.m2
 
   maranatha-n8n:
     image: n8nio/n8n:latest
@@ -167,6 +177,8 @@ services:
       - ms-chat
     networks:
       - maranatha-net
+    volumes:
+      - ~/.m2:/root/.m2
 
   maranatha-whatsapp:
     image: evoapicloud/evolution-api:latest
