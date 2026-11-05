@@ -1,4 +1,4 @@
-package com.libreria.producto.service;
+﻿package com.libreria.producto.service;
 
 import com.libreria.producto.client.VentasClient;
 import com.libreria.producto.dto.AjusteStockRequest;
@@ -17,6 +17,7 @@ import java.util.Map;
 import java.util.TreeMap;
 import java.util.UUID;
 import org.springframework.jdbc.core.JdbcTemplate;
+import com.libreria.producto.model.TipoAfectacionIgv;
 
 @Service
 public class ProductoServiceImpl implements ProductoService {
@@ -61,6 +62,25 @@ public class ProductoServiceImpl implements ProductoService {
 
     @Override
     @Transactional
+    public Producto actualizarAfectacionIgv(
+            Long id,
+            TipoAfectacionIgv afectacionIgv) {
+
+        if (afectacionIgv == null) {
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST,
+                    "La clasificacion tributaria es obligatoria"
+            );
+        }
+
+        Producto producto = obtenerProducto(id);
+        producto.setAfectacionIgv(afectacionIgv);
+
+        return repository.save(producto);
+    }
+
+    @Override
+    @Transactional
     public Producto crearProducto(Producto producto) {
         producto.setId(null);
         producto.setNombre(producto.getNombre().trim());
@@ -70,6 +90,9 @@ public class ProductoServiceImpl implements ProductoService {
         return repository.save(producto);
     }
 
+
+    @Override
+    @Transactional
     @Override
     @Transactional
     public Producto actualizarProducto(Long id, Producto cambios) {
@@ -78,12 +101,17 @@ public class ProductoServiceImpl implements ProductoService {
         producto.setDescripcion(normalizar(cambios.getDescripcion()));
         producto.setPrecio(cambios.getPrecio().setScale(2, RoundingMode.HALF_UP));
         producto.setStock(cambios.getStock());
-        if (cambios.getActivo() != null) producto.setActivo(cambios.getActivo());
+
+        if (cambios.getActivo() != null) {
+            producto.setActivo(cambios.getActivo());
+        }
+
+        if (cambios.getAfectacionIgv() != null) {
+            producto.setAfectacionIgv(cambios.getAfectacionIgv());
+        }
+
         return repository.save(producto);
     }
-
-    @Override
-    @Transactional
     public Producto descontarStock(Long id, int cantidad) {
         Producto producto = repository.findByIdForUpdate(id)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Producto no encontrado"));
@@ -94,7 +122,7 @@ public class ProductoServiceImpl implements ProductoService {
 
     private void validarSalida(Producto producto, int cantidad) {
         if (!Boolean.TRUE.equals(producto.getActivo())) {
-            throw new ResponseStatusException(HttpStatus.CONFLICT, "El producto está inactivo");
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "El producto estÃ¡ inactivo");
         }
         if (cantidad < 1) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "La cantidad debe ser positiva");
         if (producto.getStock() <= 5) throw new ResponseStatusException(HttpStatus.CONFLICT, "Stock bajo: no se permite vender productos con 5 unidades o menos");
@@ -118,7 +146,7 @@ public class ProductoServiceImpl implements ProductoService {
     public void eliminarProducto(Long id) {
         Producto producto = bloquearProducto(id);
         if (producto.getStock() > 0) {
-            throw new ResponseStatusException(HttpStatus.CONFLICT, "El producto aún tiene stock. Ajusta sus existencias antes de eliminarlo.");
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "El producto aÃºn tiene stock. Ajusta sus existencias antes de eliminarlo.");
         }
         if (producto.salidasPorVenta() > 0 || ventas.tieneVentas(id)) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "El producto tiene ventas asociadas y no se puede eliminar.");
@@ -153,7 +181,7 @@ public class ProductoServiceImpl implements ProductoService {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Indique cantidades positivas por producto.");
         }
         var ordenadas = new TreeMap<>(cantidades);
-        // Una reversa que llega primero impide un descuento tardío con el mismo ID.
+        // Una reversa que llega primero impide un descuento tardÃ­o con el mismo ID.
         int creada = jdbc.update("""
                 insert into operaciones_stock_venta (id, cantidades, revertida) values (?, ?, ?)
                 on conflict (id) do nothing
@@ -162,11 +190,11 @@ public class ProductoServiceImpl implements ProductoService {
         if (creada == 0) {
             var previa = jdbc.queryForMap("select cantidades, revertida from operaciones_stock_venta where id = ? for update", idOperacion);
             if (!ordenadas.toString().equals(previa.get("cantidades"))) {
-                throw new ResponseStatusException(HttpStatus.CONFLICT, "La operación de stock ya existe con otros artículos.");
+                throw new ResponseStatusException(HttpStatus.CONFLICT, "La operaciÃ³n de stock ya existe con otros artÃ­culos.");
             }
             if (Boolean.TRUE.equals(previa.get("revertida"))) {
                 if (reversa) return;
-                throw new ResponseStatusException(HttpStatus.CONFLICT, "La operación de stock ya fue revertida.");
+                throw new ResponseStatusException(HttpStatus.CONFLICT, "La operaciÃ³n de stock ya fue revertida.");
             }
             if (!reversa) return;
             jdbc.update("update operaciones_stock_venta set revertida = true where id = ?", idOperacion);
@@ -197,7 +225,7 @@ public class ProductoServiceImpl implements ProductoService {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "La cantidad supera el stock disponible.");
         }
         if (nuevo > Integer.MAX_VALUE) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "El stock supera el máximo permitido.");
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "El stock supera el mÃ¡ximo permitido.");
         }
         return (int) nuevo;
     }

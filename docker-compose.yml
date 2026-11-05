@@ -6,7 +6,7 @@ services:
     restart: unless-stopped
     environment:
       POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: admin123
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Configura POSTGRES_PASSWORD}
       POSTGRES_DB: postgres
     ports:
       - "5432:5432"
@@ -40,8 +40,8 @@ services:
       SERVER_PORT: 8081
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/db_auth
       SPRING_DATASOURCE_USERNAME: postgres
-      SPRING_DATASOURCE_PASSWORD: admin123
-      JWT_SECRET: MaranathaStoreClaveSuperSeguraJWT2026Maranatha
+      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD:?Configura POSTGRES_PASSWORD}
+      JWT_SECRET: ${JWT_SECRET:?Configura JWT_SECRET antes de iniciar}
       EUREKA_ENABLED: "false"
     ports: ["8081:8081"]
     depends_on:
@@ -59,7 +59,7 @@ services:
       VENTAS_SERVICE_URL: http://ms-ventas:8084
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/db_producto
       SPRING_DATASOURCE_USERNAME: postgres
-      SPRING_DATASOURCE_PASSWORD: admin123
+      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD:?Configura POSTGRES_PASSWORD}
       EUREKA_ENABLED: "false"
     ports: ["8082:8082"]
     depends_on:
@@ -77,7 +77,7 @@ services:
       SERVER_PORT: 8083
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/db_cliente
       SPRING_DATASOURCE_USERNAME: postgres
-      SPRING_DATASOURCE_PASSWORD: admin123
+      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD:?Configura POSTGRES_PASSWORD}
       EUREKA_ENABLED: "false"
     ports: ["8083:8083"]
     depends_on:
@@ -95,7 +95,7 @@ services:
       SERVER_PORT: 8084
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/db_ventas
       SPRING_DATASOURCE_USERNAME: postgres
-      SPRING_DATASOURCE_PASSWORD: admin123
+      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD:?Configura POSTGRES_PASSWORD}
       PRODUCTO_SERVICE_URL: http://ms-producto:8082
       CLIENTE_SERVICE_URL: http://ms-cliente:8083
       EUREKA_ENABLED: "false"
@@ -108,6 +108,20 @@ services:
       ms-cliente:
         condition: service_started
 
+  ms-facturacion:
+    build:
+      context: .
+      dockerfile: ms-facturacion/Dockerfile
+    container_name: maranatha-facturacion
+    restart: unless-stopped
+    environment:
+      SERVER_PORT: 8085
+      JWT_SECRET: ${JWT_SECRET:?Configura JWT_SECRET antes de iniciar}
+      EUREKA_ENABLED: "false"
+      CONSULTA_RUC_ENABLED: "false"
+    expose:
+      - "8085"
+
   api-gateway:
     image: maranatha-store-v2-backend-api-gateway:latest
     build:
@@ -115,12 +129,13 @@ services:
       dockerfile: api-gateway/Dockerfile
     container_name: maranatha-gateway
     environment:
+      FACTURACION_SERVICE_URL: http://ms-facturacion:8085
       SERVER_PORT: 8080
       AUTH_SERVICE_URL: http://ms-auth:8081
       PRODUCTO_SERVICE_URL: http://ms-producto:8082
       CLIENTE_SERVICE_URL: http://ms-cliente:8083
       VENTAS_SERVICE_URL: http://ms-ventas:8084
-      JWT_SECRET: MaranathaStoreClaveSuperSeguraJWT2026Maranatha
+      JWT_SECRET: ${JWT_SECRET:?Configura JWT_SECRET antes de iniciar}
       EUREKA_ENABLED: "false"
     ports: ["8080:8080"]
     depends_on:
@@ -128,6 +143,7 @@ services:
       - ms-producto
       - ms-cliente
       - ms-ventas
+      - ms-facturacion
 
 volumes:
   postgres_data:

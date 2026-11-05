@@ -18,6 +18,7 @@ import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import com.libreria.producto.dto.AfectacionIgvRequest;
 
 import java.util.List;
 
@@ -91,6 +92,18 @@ public class ProductoController {
                            @RequestAttribute(value = "stockInterno", required = false) Boolean stockInterno) {
         if (!Boolean.TRUE.equals(stockInterno)) throw new ResponseStatusException(HttpStatus.FORBIDDEN);
         service.aplicarStockVenta(idOperacion, cantidades, operacion.equals("revertir"));
+    }
+
+    @PatchMapping("/{id}/afectacion-igv")
+    @Operation(summary = "Actualizar clasificacion tributaria del producto")
+    public Producto actualizarAfectacionIgv(
+            @PathVariable Long id,
+            @Valid @RequestBody AfectacionIgvRequest request) {
+
+        return service.actualizarAfectacionIgv(
+                id,
+                request.afectacionIgv()
+        );
     }
 
     @DeleteMapping("/{id}")
