@@ -4,7 +4,7 @@ WORKDIR /workspace
 
 COPY . .
 
-RUN mvn -q -pl ms-facturacion -am -DskipTests package
+RUN mvn -q -pl ms-facturacion -am -DskipTests -Dmaven.test.skip=true package
 
 FROM eclipse-temurin:17-jre-alpine
 

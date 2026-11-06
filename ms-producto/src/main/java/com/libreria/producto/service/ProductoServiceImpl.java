@@ -1,4 +1,4 @@
-﻿package com.libreria.producto.service;
+package com.libreria.producto.service;
 
 import com.libreria.producto.client.VentasClient;
 import com.libreria.producto.dto.AjusteStockRequest;
@@ -91,8 +91,6 @@ public class ProductoServiceImpl implements ProductoService {
     }
 
 
-    @Override
-    @Transactional
     @Override
     @Transactional
     public Producto actualizarProducto(Long id, Producto cambios) {

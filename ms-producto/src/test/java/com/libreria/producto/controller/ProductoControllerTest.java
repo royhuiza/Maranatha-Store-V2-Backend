@@ -3,6 +3,7 @@ package com.libreria.producto.controller;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.libreria.producto.model.Producto;
 import com.libreria.producto.model.TipoAfectacionIgv;
+import com.libreria.producto.service.ImportacionProductos;
 import com.libreria.producto.service.ProductoService;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.MediaType;
@@ -20,6 +21,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 class ProductoControllerTest {
 
     private final ProductoService service = mock(ProductoService.class);
+    private final ImportacionProductos importacion = mock(ImportacionProductos.class);
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     private MockMvc crearMockMvc() {
@@ -28,7 +30,7 @@ class ProductoControllerTest {
         validator.afterPropertiesSet();
 
         return MockMvcBuilders
-                .standaloneSetup(new ProductoController(service))
+                .standaloneSetup(new ProductoController(service, importacion))
                 .setValidator(validator)
                 .build();
     }

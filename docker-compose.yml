@@ -1,4 +1,4 @@
-﻿name: backend
+name: maranatha-backend
 services:
   postgres:
     image: postgres:15-alpine
@@ -231,14 +231,16 @@ services:
       - AUTHENTICATION_API_KEY=maranatha_secret_key_2026
       - DATABASE_ENABLED=true
       - DATABASE_PROVIDER=postgresql
-      - DATABASE_CONNECTION_URI=postgresql://postgres:admin123@postgres:5432/postgres?schema=public
+      - DATABASE_CONNECTION_URI=postgresql://postgres:${POSTGRES_PASSWORD:?Configura POSTGRES_PASSWORD}@postgres:5432/postgres?schema=public
       - DATABASE_CLIENT_NAME=evolution_db
       - CACHE_REDIS_ENABLED=true
       - CACHE_REDIS_URI=redis://maranatha-redis:6379/6
       - CACHE_REDIS_PREFIX_KEY=evolution
     depends_on:
-      - postgres
-      - redis
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
     networks:
       - maranatha-net
 

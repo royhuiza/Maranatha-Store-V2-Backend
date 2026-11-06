@@ -1,11 +1,14 @@
 package com.libreria.producto.service;
 
+import com.libreria.producto.client.VentasClient;
 import com.libreria.producto.model.Producto;
 import com.libreria.producto.model.TipoAfectacionIgv;
+import com.libreria.producto.repository.AjusteInventarioRepository;
 import com.libreria.producto.repository.ProductoRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
+import org.springframework.jdbc.core.JdbcTemplate;
 
 import java.math.BigDecimal;
 import java.util.Optional;
@@ -22,7 +25,10 @@ class ProductoServiceImplTest {
     @BeforeEach
     void configurar() {
         repository = mock(ProductoRepository.class);
-        service = new ProductoServiceImpl(repository);
+        AjusteInventarioRepository ajustes = mock(AjusteInventarioRepository.class);
+        VentasClient ventas = mock(VentasClient.class);
+        JdbcTemplate jdbc = mock(JdbcTemplate.class);
+        service = new ProductoServiceImpl(repository, ajustes, ventas, jdbc);
 
         when(repository.save(any(Producto.class)))
                 .thenAnswer(invocation -> invocation.getArgument(0));
@@ -83,7 +89,7 @@ class ProductoServiceImplTest {
         existente.setId(2L);
         existente.setAfectacionIgv(TipoAfectacionIgv.INAFECTO);
 
-        when(repository.findById(2L))
+        when(repository.findByIdForUpdate(2L))
                 .thenReturn(Optional.of(existente));
 
         Producto cambios = crearDatosProducto();
