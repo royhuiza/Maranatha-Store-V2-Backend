@@ -45,9 +45,13 @@ public class SecurityConfig {
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authenticationProvider(provider)
                 .authorizeHttpRequests(auth -> auth
-                        .requestMatchers("/auth/password/forgot", "/auth/password/reset", "/auth/login", "/auth/test",
+                        .requestMatchers(org.springframework.http.HttpMethod.OPTIONS, "/**").permitAll()
+                        .requestMatchers(
+                                "/api/auth/password/forgot", "/api/auth/password/reset", "/api/auth/login", "/api/auth/test",
+                                "/auth/password/forgot", "/auth/password/reset", "/auth/login", "/auth/test",
                                 "/swagger-ui/**", "/swagger-ui.html", "/api-docs/**").permitAll()
-                        .requestMatchers("/auth/register", "/auth/usuarios", "/auth/usuarios/**").hasRole("ADMIN")
+                        .requestMatchers("/api/auth/register", "/api/auth/usuarios", "/api/auth/usuarios/**",
+                                "/auth/register", "/auth/usuarios", "/auth/usuarios/**").hasRole("ADMIN")
                         .anyRequest().authenticated())
                 .addFilterBefore(jwtFilter, UsernamePasswordAuthenticationFilter.class)
                 .build();
