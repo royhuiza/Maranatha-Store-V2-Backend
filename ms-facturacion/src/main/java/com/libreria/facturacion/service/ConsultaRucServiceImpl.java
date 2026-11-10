@@ -1,20 +1,51 @@
 
 package com.libreria.facturacion.service;
 
+import com.fasterxml.jackson.databind.JsonNode;
 import com.libreria.facturacion.dto.ConsultaRucResponse;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.web.client.RestTemplateBuilder;
+import org.springframework.http.*;
+import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.stereotype.Service;
+import org.springframework.web.client.*;
+import org.springframework.web.server.ResponseStatusException;
+
+import java.time.Duration;
 
 @Service
 public class ConsultaRucServiceImpl implements ConsultaRucService {
 
     private final boolean consultaHabilitada;
+    private final RestTemplate http;
+    private final String clienteServiceUrl;
+    private final HttpServletRequest request;
 
+    @Autowired
     public ConsultaRucServiceImpl(
             @Value("${consulta-ruc.enabled:false}")
-            boolean consultaHabilitada
+            boolean consultaHabilitada,
+            @Value("${consulta-ruc.cliente-url:http://ms-cliente:8083}")
+            String clienteServiceUrl,
+            RestTemplateBuilder builder,
+            HttpServletRequest request
     ) {
         this.consultaHabilitada = consultaHabilitada;
+        this.clienteServiceUrl = clienteServiceUrl;
+        this.request = request;
+        this.http = builder
+                .setConnectTimeout(Duration.ofSeconds(4))
+                .setReadTimeout(Duration.ofSeconds(10))
+                .build();
+    }
+
+    // Compatibilidad con las pruebas existentes.
+    public ConsultaRucServiceImpl(boolean consultaHabilitada) {
+        this.consultaHabilitada = consultaHabilitada;
+        this.clienteServiceUrl = "";
+        this.request = null;
+        this.http = new RestTemplate();
     }
 
     @Override
@@ -32,8 +63,108 @@ public class ConsultaRucServiceImpl implements ConsultaRucService {
             );
         }
 
-        throw new UnsupportedOperationException(
-                "Todavia no se ha implementado el proveedor de consulta RUC"
-        );
+        if (clienteServiceUrl.isBlank()) {
+            throw new IllegalStateException(
+                    "No se ha configurado ms-cliente"
+            );
+        }
+
+        String url = clienteServiceUrl
+                + "/clientes/documentos/ruc/" + ruc;
+
+        try {
+            ResponseEntity<JsonNode> respuesta =
+                    http.exchange(
+                            url,
+                            HttpMethod.GET,
+                            new HttpEntity<Void>(
+                                    new HttpHeaders() {{
+                                        if (request != null) {
+                                            String authorization = request.getHeader(HttpHeaders.AUTHORIZATION);
+                                            if (authorization != null && authorization.startsWith("Bearer ")) {
+                                                set(HttpHeaders.AUTHORIZATION, authorization);
+                                            }
+                                        }
+                                    }}
+                            ),
+                            JsonNode.class
+                    );
+
+            JsonNode datos = respuesta.getBody();
+
+            if (datos == null || !datos.isObject()) {
+                throw new ResponseStatusException(
+                        HttpStatus.BAD_GATEWAY,
+                        "Respuesta RUC invalida"
+                );
+            }
+
+            String numero = texto(datos, "numeroDocumento");
+            String razonSocial = texto(datos, "nombre");
+
+            if (!ruc.equals(numero) || razonSocial.isBlank()) {
+                throw new ResponseStatusException(
+                        HttpStatus.BAD_GATEWAY,
+                        "El proveedor no devolvio datos validos para el RUC"
+                );
+            }
+
+            return new ConsultaRucResponse(
+                    numero,
+                    razonSocial,
+                    texto(datos, "estado"),
+                    texto(datos, "condicion"),
+                    texto(datos, "direccion")
+            );
+
+        } catch (HttpStatusCodeException error) {
+            HttpStatusCode status = error.getStatusCode();
+
+            if (status.value() == 404) {
+                throw new ResponseStatusException(
+                        HttpStatus.NOT_FOUND,
+                        "No se encontraron datos para el RUC"
+                );
+            }
+
+            if (status.value() == 429) {
+                throw new ResponseStatusException(
+                        HttpStatus.TOO_MANY_REQUESTS,
+                        "Limite de consultas alcanzado"
+                );
+            }
+
+            if (status.value() == 400) {
+                throw new ResponseStatusException(
+                        HttpStatus.BAD_REQUEST,
+                        "El proveedor rechazo el RUC"
+                );
+            }
+
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_GATEWAY,
+                    "No se pudo consultar el servicio de RUC"
+            );
+
+        } catch (ResourceAccessException error) {
+            throw new ResponseStatusException(
+                    HttpStatus.GATEWAY_TIMEOUT,
+                    "No se pudo conectar con ms-cliente"
+            );
+
+        } catch (RestClientException error) {
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_GATEWAY,
+                    "Error al interpretar la respuesta de ms-cliente"
+            );
+        }
+    }
+
+    private String texto(JsonNode datos, String campo) {
+        JsonNode valor = datos.get(campo);
+
+        return valor != null && valor.isTextual()
+                ? valor.asText().trim()
+                : "";
     }
 }

@@ -58,6 +58,7 @@
     container_name: maranatha-clientes
     environment:
       SERVER_PORT: 8083
+      JWT_SECRET: ${JWT_SECRET:?Configura JWT_SECRET antes de iniciar}
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/db_cliente
       SPRING_DATASOURCE_USERNAME: postgres
       SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD:?Configura POSTGRES_PASSWORD}
@@ -99,7 +100,8 @@
       SERVER_PORT: 8085
       JWT_SECRET: ${JWT_SECRET:?Configura JWT_SECRET antes de iniciar}
       EUREKA_ENABLED: "false"
-      CONSULTA_RUC_ENABLED: "false"
+      CONSULTA_RUC_ENABLED: "true"
+      MS_CLIENTE_URL: http://ms-cliente:8083
     expose:
       - "8085"
 
