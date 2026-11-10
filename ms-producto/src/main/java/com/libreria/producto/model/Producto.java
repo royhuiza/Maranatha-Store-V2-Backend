@@ -2,6 +2,7 @@ package com.libreria.producto.model;
 
 import jakarta.persistence.*;
 import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.fasterxml.jackson.annotation.JsonProperty;
 import jakarta.validation.constraints.DecimalMin;
 import jakarta.validation.constraints.Digits;
 import jakarta.validation.groups.Default;
@@ -16,6 +17,7 @@ import java.math.BigDecimal;
 @Table(name = "productos")
 public class Producto {
     public interface DatosCatalogo extends Default {}
+    public static final int STOCK_MINIMO_POR_DEFECTO = 5;
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
@@ -41,6 +43,11 @@ public class Producto {
     @Column(nullable = false)
     private Integer stock;
 
+    /** T40: umbral propio de cada artículo; por defecto 5 unidades. */
+    @Min(value = 0, message = "El stock mínimo no puede ser negativo")
+    @Column(name = "stock_minimo", nullable = false, columnDefinition = "integer not null default 5")
+    private Integer stockMinimo = STOCK_MINIMO_POR_DEFECTO;
+
     @Column(nullable = false)
     private Boolean activo = true;
 
@@ -51,6 +58,19 @@ public class Producto {
     private Long version;
 
     public Producto() {}
+
+    public Integer getStockMinimo() { return stockMinimo; }
+    public void setStockMinimo(Integer stockMinimo) { this.stockMinimo = stockMinimo; }
+
+    /** T41: compara el stock actual con el stock mínimo del artículo. Se calcula, no se guarda. */
+    @Transient
+    @JsonProperty(access = JsonProperty.Access.READ_ONLY)
+    public String getEstadoStock() {
+        int actual = stock == null ? 0 : stock;
+        int minimo = stockMinimo == null ? STOCK_MINIMO_POR_DEFECTO : stockMinimo;
+        if (actual <= 0) return "SIN_STOCK";
+        return actual <= minimo ? "STOCK_BAJO" : "DISPONIBLE";
+    }
 
     public Long getId() { return id; }
     public void setId(Long id) { this.id = id; }

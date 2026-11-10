@@ -41,6 +41,10 @@ public class ProductoController {
         return service.listar(consulta);
     }
 
+    @GetMapping("/stock-bajo")
+    @Operation(summary = "Alertas: artículos activos con stock menor o igual a su stock mínimo")
+    public List<Producto> stockBajo() { return service.listarStockBajo(); }
+
     @GetMapping("/{id}")
     @Operation(summary = "Buscar producto por ID")
     public Producto obtener(@PathVariable Long id) { return service.obtenerProducto(id); }

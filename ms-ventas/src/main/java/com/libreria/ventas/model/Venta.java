@@ -8,7 +8,11 @@ import java.util.ArrayList;
 import java.util.List;
 
 @Entity
-@Table(name = "ventas")
+// T68: índices para filtrar el historial por fecha y por serie/número de comprobante.
+@Table(name = "ventas", indexes = {
+        @Index(name = "idx_ventas_fecha", columnList = "fecha"),
+        @Index(name = "idx_ventas_serie_numero", columnList = "serie, numero")
+})
 public class Venta {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
