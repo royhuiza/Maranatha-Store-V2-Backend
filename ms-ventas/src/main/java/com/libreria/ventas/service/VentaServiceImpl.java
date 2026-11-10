@@ -101,8 +101,6 @@ public class VentaServiceImpl implements VentaService {
     public Venta anularVenta(Long id) {
         Venta venta = ventaRepository.findLockedById(id)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Venta no encontrada"));
-        if (venta.isValidadoSunat()) throw new ResponseStatusException(HttpStatus.CONFLICT,"Un comprobante fiscal requiere su proceso de baja o nota de crédito");
-        if (venta.getEstadoPago() != null && !"PENDIENTE".equals(venta.getEstadoPago())) throw new ResponseStatusException(HttpStatus.CONFLICT,"Revise el pago antes de anular esta venta");
         if (venta.getEstado() == EstadoVenta.ANULADA) return venta;
 
         List<VentaDetalle> repuestos = new ArrayList<>();
@@ -129,8 +127,6 @@ public class VentaServiceImpl implements VentaService {
     public void eliminarVenta(Long id) {
         Venta venta = ventaRepository.findLockedById(id)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Venta no encontrada"));
-        if (venta.isValidadoSunat()) throw new ResponseStatusException(HttpStatus.CONFLICT,"No se permite eliminar comprobantes fiscales");
-        if (venta.getEstadoPago() != null && !"PENDIENTE".equals(venta.getEstadoPago())) throw new ResponseStatusException(HttpStatus.CONFLICT,"No se permite eliminar una venta con pago registrado");
         if (venta.getEstado() != EstadoVenta.ANULADA) throw new ResponseStatusException(HttpStatus.CONFLICT,"Anule la venta antes de eliminarla para reponer su stock una sola vez");
         ventaRepository.delete(venta);
         ventaRepository.flush();
@@ -188,7 +184,7 @@ public class VentaServiceImpl implements VentaService {
                     throw new ResponseStatusException(HttpStatus.CONFLICT,
                             "El producto " + producto.getNombre() + " está inactivo");
                 }
-                if (producto.getStock() <= 5) throw new ResponseStatusException(HttpStatus.CONFLICT, "Stock bajo para " + producto.getNombre() + ": no vendible");
+                if (producto.getStock() <= 0) throw new ResponseStatusException(HttpStatus.CONFLICT, "Sin stock: " + producto.getNombre() + " no tiene unidades disponibles");
                 if (producto.getStock() < entry.getValue()) {
                     throw new ResponseStatusException(HttpStatus.CONFLICT,
                             "Stock insuficiente para " + producto.getNombre() + ". Disponible: " + producto.getStock());
@@ -212,10 +208,13 @@ public class VentaServiceImpl implements VentaService {
         venta.setClienteNombre(cliente == null ? "Público general" : cliente.nombreCompleto().trim());
         venta.setClienteDocumento(cliente == null || cliente.getNumeroDocumento() == null ? null
                 : cliente.getTipoDocumento() + " " + cliente.getNumeroDocumento());
+        String documento = request.getDocumento() == null ? "" : request.getDocumento().trim();
+        if (venta.getClienteDocumento() == null && !documento.isEmpty()) {
+            venta.setClienteDocumento((documento.length() == 11 ? "RUC " : "DNI ") + documento);
+        }
         venta.setFecha(LocalDateTime.now(PeruTime.ZONE));
         venta.setFechaZona(PeruTime.ZONE.getId());
         venta.setTipoComprobante(request.getTipoComprobante());
-        venta.setMetodoPago(request.getMetodoPago());
         venta.setSerie(seriePara(request.getTipoComprobante()));
         venta.setNumero("PENDIENTE");
         venta.setEstado(EstadoVenta.EMITIDA);

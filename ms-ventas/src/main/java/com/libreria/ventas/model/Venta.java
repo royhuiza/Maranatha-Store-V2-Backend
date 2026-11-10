@@ -47,19 +47,6 @@ public class Venta {
     @OrderBy("id ASC")
     private List<VentaDetalle> detalles = new ArrayList<>();
 
-    @Column(name = "estado_pago", nullable = false, columnDefinition = "varchar(30) default 'PENDIENTE'")
-    private String estadoPago = "PENDIENTE";
-    public String getEstadoPago() { return estadoPago; }
-    public void setEstadoPago(String estadoPago) { this.estadoPago = estadoPago; }
-    @Column(name = "validado_sunat", nullable = false, columnDefinition = "boolean default false")
-    private boolean validadoSunat;
-    public boolean isValidadoSunat() { return validadoSunat; }
-    public void setValidadoSunat(boolean value) { validadoSunat = value; }
-    @Enumerated(EnumType.STRING)
-    @Column(name = "metodo_pago", length = 30)
-    private MetodoPago metodoPago;
-    public MetodoPago getMetodoPago() { return metodoPago; }
-    public void setMetodoPago(MetodoPago value) { metodoPago = value; }
     public Venta() {}
 
     public void agregarDetalle(VentaDetalle detalle) {

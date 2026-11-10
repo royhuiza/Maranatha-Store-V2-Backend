@@ -73,7 +73,6 @@ services:
       dockerfile: ms-cliente/Dockerfile
     container_name: maranatha-clientes
     environment:
-      DECOLECTA_API_KEY: ${DECOLECTA_API_KEY:-}
       SERVER_PORT: 8083
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/db_cliente
       SPRING_DATASOURCE_USERNAME: postgres
@@ -91,7 +90,6 @@ services:
       dockerfile: ms-ventas/Dockerfile
     container_name: maranatha-ventas
     environment:
-      CULQI_TEST_SECRET_KEY: ${CULQI_TEST_SECRET_KEY:-}
       SERVER_PORT: 8084
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/db_ventas
       SPRING_DATASOURCE_USERNAME: postgres

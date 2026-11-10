@@ -97,7 +97,7 @@ public class ProductoServiceImpl implements ProductoService {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "El producto está inactivo");
         }
         if (cantidad < 1) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "La cantidad debe ser positiva");
-        if (producto.getStock() <= 5) throw new ResponseStatusException(HttpStatus.CONFLICT, "Stock bajo: no se permite vender productos con 5 unidades o menos");
+        if (producto.getStock() <= 0) throw new ResponseStatusException(HttpStatus.CONFLICT, "Sin stock: " + producto.getNombre() + " no tiene unidades disponibles");
         if (producto.getStock() < cantidad) {
             throw new ResponseStatusException(HttpStatus.CONFLICT,
                     "Stock insuficiente para " + producto.getNombre() + ". Disponible: " + producto.getStock());
@@ -120,10 +120,9 @@ public class ProductoServiceImpl implements ProductoService {
         if (producto.getStock() > 0) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "El producto aún tiene stock. Ajusta sus existencias antes de eliminarlo.");
         }
-        if (producto.salidasPorVenta() > 0 || ventas.tieneVentas(id)) {
-            throw new ResponseStatusException(HttpStatus.CONFLICT, "El producto tiene ventas asociadas y no se puede eliminar.");
-        }
-        repository.delete(producto);
+        // Regla de negocio: no se borra del catálogo; queda INACTIVO y conserva su historial.
+        producto.setActivo(false);
+        repository.save(producto);
     }
 
     @Override

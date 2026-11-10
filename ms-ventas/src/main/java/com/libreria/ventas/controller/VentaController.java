@@ -51,7 +51,7 @@ public class VentaController {
 
     @DeleteMapping("/{id}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
-    @Operation(summary = "Eliminar un registro interno anulado, sin pago y no fiscal")
+    @Operation(summary = "Eliminar un registro interno anulado")
     public void eliminarVenta(@PathVariable Long id) { ventaService.eliminarVenta(id); }
 
     @GetMapping("/cliente/{clienteId}")
