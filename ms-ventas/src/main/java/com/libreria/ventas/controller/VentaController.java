@@ -4,6 +4,8 @@ import com.libreria.ventas.client.ClienteClient;
 import com.libreria.ventas.client.ProductoClient;
 import com.libreria.ventas.dto.ClienteDTO;
 import com.libreria.ventas.dto.CrearVentaRequest;
+import com.libreria.ventas.dto.HistorialVentas;
+import com.libreria.ventas.service.HistorialVentaService;
 import com.libreria.ventas.dto.ProductoDTO;
 import com.libreria.ventas.model.Venta;
 import com.libreria.ventas.service.VentaService;
@@ -24,9 +26,12 @@ public class VentaController {
     private final VentaService ventaService;
     private final ClienteClient clienteClient;
     private final ProductoClient productoClient;
+    private final HistorialVentaService historialService;
 
-    public VentaController(VentaService ventaService, ClienteClient clienteClient, ProductoClient productoClient) {
+    public VentaController(VentaService ventaService, ClienteClient clienteClient, ProductoClient productoClient,
+                           HistorialVentaService historialService) {
         this.ventaService = ventaService;
+        this.historialService = historialService;
         this.clienteClient = clienteClient;
         this.productoClient = productoClient;
     }
@@ -34,6 +39,16 @@ public class VentaController {
     @GetMapping
     @Operation(summary = "Listar ventas")
     public List<Venta> listarVentas() { return ventaService.listarVentas(); }
+
+    @GetMapping("/historial")
+    @Operation(summary = "Historial filtrado por fechas (aaaa-mm-dd) y número de comprobante, paginado")
+    public HistorialVentas historial(@RequestParam(required = false) String desde,
+                                     @RequestParam(required = false) String hasta,
+                                     @RequestParam(required = false) String numero,
+                                     @RequestParam(defaultValue = "0") int pagina,
+                                     @RequestParam(defaultValue = "10") int tamano) {
+        return historialService.consultar(desde, hasta, numero, pagina, tamano);
+    }
 
     @GetMapping("/{id}")
     @Operation(summary = "Obtener una venta y su comprobante")
@@ -49,10 +64,20 @@ public class VentaController {
     @Operation(summary = "Anular venta y reponer stock")
     public Venta anularVenta(@PathVariable Long id) { return ventaService.anularVenta(id); }
 
+    @DeleteMapping("/{id}")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    @Operation(summary = "Eliminar un registro interno anulado")
+    public void eliminarVenta(@PathVariable Long id) { ventaService.eliminarVenta(id); }
+
     @GetMapping("/cliente/{clienteId}")
     @Operation(summary = "Comprobar comunicación con clientes")
     public ClienteDTO obtenerCliente(@PathVariable Long clienteId) {
         return clienteClient.obtenerCliente(clienteId);
+    }
+
+    @GetMapping("/producto/{productoId}/asociado")
+    public boolean tieneVentas(@PathVariable Long productoId) {
+        return ventaService.tieneVentas(productoId);
     }
 
     @GetMapping("/producto/{productoId}")

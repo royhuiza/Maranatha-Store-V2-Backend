@@ -12,9 +12,15 @@ import org.springframework.web.server.ResponseStatusException;
 import java.time.LocalDateTime;
 import java.util.Map;
 import java.util.stream.Collectors;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 @RestControllerAdvice
 public class ApiExceptionHandler {
+
+    private static final Logger log =
+            LoggerFactory.getLogger(ApiExceptionHandler.class);
+
     @ExceptionHandler(MethodArgumentNotValidException.class)
     ResponseEntity<Map<String, Object>> validation(MethodArgumentNotValidException ex) {
         String message = ex.getBindingResult().getFieldErrors().stream()
@@ -29,9 +35,24 @@ public class ApiExceptionHandler {
     ResponseEntity<Map<String, Object>> integrity(DataIntegrityViolationException ex) {
         return response(HttpStatus.CONFLICT, "No se puede eliminar o guardar el producto por datos relacionados");
     }
+    @ExceptionHandler(org.springframework.web.multipart.MaxUploadSizeExceededException.class)
+    ResponseEntity<Map<String, Object>> archivoGrande() {
+        return response(HttpStatus.PAYLOAD_TOO_LARGE, "El archivo Excel no puede superar 5 MB.");
+    }
+    @ExceptionHandler({org.springframework.web.bind.MissingServletRequestParameterException.class,
+            org.springframework.web.multipart.support.MissingServletRequestPartException.class,
+            org.springframework.http.converter.HttpMessageNotReadableException.class})
+    ResponseEntity<Map<String, Object>> solicitudInvalida() {
+        return response(HttpStatus.BAD_REQUEST, "Revisa los datos enviados en la solicitud.");
+    }
     @ExceptionHandler(Exception.class)
     ResponseEntity<Map<String, Object>> generic(Exception ex) {
-        return response(HttpStatus.INTERNAL_SERVER_ERROR, "Error interno al procesar el producto");
+        log.error("Error inesperado al procesar el producto", ex);
+
+        return response(
+                HttpStatus.INTERNAL_SERVER_ERROR,
+                "Error interno al procesar el producto"
+        );
     }
     private ResponseEntity<Map<String, Object>> response(HttpStatus status, String message) {
         return ResponseEntity.status(status).body(Map.of("timestamp", LocalDateTime.now().toString(),

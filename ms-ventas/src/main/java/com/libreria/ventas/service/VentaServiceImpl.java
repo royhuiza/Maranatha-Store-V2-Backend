@@ -10,6 +10,7 @@ import com.libreria.ventas.dto.DetalleVentaRequest;
 import com.libreria.ventas.dto.ProductoDTO;
 import com.libreria.ventas.model.*;
 import com.libreria.ventas.repository.VentaRepository;
+import com.libreria.ventas.repository.VentaDetalleRepository;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -29,13 +30,15 @@ public class VentaServiceImpl implements VentaService {
     private final ClienteClient clienteClient;
     private final ProductoClient productoClient;
     private final ObjectMapper objectMapper;
+    private final VentaDetalleRepository detalles;
 
     public VentaServiceImpl(VentaRepository ventaRepository, ClienteClient clienteClient,
-                            ProductoClient productoClient, ObjectMapper objectMapper) {
+                            ProductoClient productoClient, ObjectMapper objectMapper, VentaDetalleRepository detalles) {
         this.ventaRepository = ventaRepository;
         this.clienteClient = clienteClient;
         this.productoClient = productoClient;
         this.objectMapper = objectMapper;
+        this.detalles = detalles;
     }
 
     @Override
@@ -59,19 +62,25 @@ public class VentaServiceImpl implements VentaService {
         LinkedHashMap<Long, ProductoDTO> productos = consultarYValidarProductos(cantidades);
 
         Venta venta = construirVenta(request, cliente, cantidades, productos);
-        List<Map.Entry<Long, Integer>> descontados = new ArrayList<>();
-
+        UUID idOperacionStock = UUID.randomUUID();
+        boolean stockDescontado = false;
         try {
-            for (Map.Entry<Long, Integer> entry : cantidades.entrySet()) {
-                productoClient.descontarStock(entry.getKey(), entry.getValue());
-                descontados.add(entry);
-            }
+            productoClient.aplicarStockVenta(idOperacionStock, cantidades, false);
+            stockDescontado = true;
 
             ventaRepository.saveAndFlush(venta);
             venta.setNumero(String.format("%08d", venta.getId()));
-            return ventaRepository.save(venta);
+            return ventaRepository.saveAndFlush(venta);
         } catch (Exception ex) {
-            compensarStock(descontados);
+            if (stockDescontado || ex instanceof ResourceAccessException) {
+                try {
+                    productoClient.aplicarStockVenta(idOperacionStock, cantidades, true);
+                } catch (RuntimeException falloReposicion) {
+                    ex.addSuppressed(falloReposicion);
+                    throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE,
+                            "La venta no se guardó y no se pudo confirmar la reposición. Revise el inventario.", ex);
+                }
+            }
             if (ex instanceof ResponseStatusException responseStatusException) {
                 throw responseStatusException;
             }
@@ -90,7 +99,10 @@ public class VentaServiceImpl implements VentaService {
     @Override
     @Transactional
     public Venta anularVenta(Long id) {
-        Venta venta = obtenerVenta(id);
+        Venta venta = ventaRepository.findLockedById(id)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Venta no encontrada"));
+        if (venta.isValidadoSunat()) throw new ResponseStatusException(HttpStatus.CONFLICT, "Un comprobante fiscal requiere su proceso de baja o nota de credito");
+        if (venta.getEstadoPago() != null && !"PENDIENTE".equals(venta.getEstadoPago())) throw new ResponseStatusException(HttpStatus.CONFLICT, "Revise el pago antes de anular esta venta");
         if (venta.getEstado() == EstadoVenta.ANULADA) return venta;
 
         List<VentaDetalle> repuestos = new ArrayList<>();
@@ -112,9 +124,38 @@ public class VentaServiceImpl implements VentaService {
         }
     }
 
+    @Override
+    @Transactional
+    public void eliminarVenta(Long id) {
+        Venta venta = ventaRepository.findLockedById(id)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Venta no encontrada"));
+        if (venta.isValidadoSunat()) throw new ResponseStatusException(HttpStatus.CONFLICT,"No se permite eliminar comprobantes fiscales");
+        if (venta.getEstadoPago() != null && !"PENDIENTE".equals(venta.getEstadoPago())) throw new ResponseStatusException(HttpStatus.CONFLICT,"No se permite eliminar una venta con pago registrado");
+        if (venta.getEstado() != EstadoVenta.ANULADA) throw new ResponseStatusException(HttpStatus.CONFLICT,"Anule la venta antes de eliminarla para reponer su stock una sola vez");
+        ventaRepository.delete(venta);
+        ventaRepository.flush();
+    }
+
     private ClienteDTO obtenerYValidarCliente(CrearVentaRequest request) {
         ClienteDTO cliente = null;
-        if (request.getClienteId() != null) {
+
+        String documento = request.getDocumento() == null ? "" : request.getDocumento().trim();
+        if (!documento.isEmpty()) {
+            String tipo = documento.length() == 11 ? "RUC" : "DNI";
+            try {
+                cliente = clienteClient.obtenerClientePorDocumento(tipo, documento);
+            } catch (org.springframework.web.client.HttpClientErrorException.NotFound ex) {
+                cliente = null;
+            } catch (org.springframework.web.client.HttpClientErrorException ex) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                        "No se pudo validar el documento " + documento, ex);
+            } catch (org.springframework.web.client.ResourceAccessException ex) {
+                throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE,
+                        "No se pudo comunicar con el servicio de clientes", ex);
+            }
+        }
+
+        if (cliente == null && request.getClienteId() != null) {
             try {
                 cliente = clienteClient.obtenerCliente(request.getClienteId());
             } catch (HttpStatusCodeException ex) {
@@ -164,6 +205,7 @@ public class VentaServiceImpl implements VentaService {
                     throw new ResponseStatusException(HttpStatus.CONFLICT,
                             "El producto " + producto.getNombre() + " está inactivo");
                 }
+                if (producto.getStock() <= 0) throw new ResponseStatusException(HttpStatus.CONFLICT, "Sin stock: " + producto.getNombre() + " no tiene unidades disponibles");
                 if (producto.getStock() < entry.getValue()) {
                     throw new ResponseStatusException(HttpStatus.CONFLICT,
                             "Stock insuficiente para " + producto.getNombre() + ". Disponible: " + producto.getStock());
@@ -187,8 +229,14 @@ public class VentaServiceImpl implements VentaService {
         venta.setClienteNombre(cliente == null ? "Público general" : cliente.nombreCompleto().trim());
         venta.setClienteDocumento(cliente == null || cliente.getNumeroDocumento() == null ? null
                 : cliente.getTipoDocumento() + " " + cliente.getNumeroDocumento());
-        venta.setFecha(LocalDateTime.now());
+        String documento = request.getDocumento() == null ? "" : request.getDocumento().trim();
+        if (venta.getClienteDocumento() == null && !documento.isEmpty()) {
+            venta.setClienteDocumento((documento.length() == 11 ? "RUC " : "DNI ") + documento);
+        }
+        venta.setFecha(LocalDateTime.now(PeruTime.ZONE));
+        venta.setFechaZona(PeruTime.ZONE.getId());
         venta.setTipoComprobante(request.getTipoComprobante());
+        venta.setMetodoPago(request.getMetodoPago());
         venta.setSerie(seriePara(request.getTipoComprobante()));
         venta.setNumero("PENDIENTE");
         venta.setEstado(EstadoVenta.EMITIDA);
@@ -220,13 +268,10 @@ public class VentaServiceImpl implements VentaService {
         };
     }
 
-    private void compensarStock(List<Map.Entry<Long, Integer>> descontados) {
-        ListIterator<Map.Entry<Long, Integer>> iterator = descontados.listIterator(descontados.size());
-        while (iterator.hasPrevious()) {
-            Map.Entry<Long, Integer> entry = iterator.previous();
-            try { productoClient.reponerStock(entry.getKey(), entry.getValue()); }
-            catch (Exception ignored) { }
-        }
+    @Override
+    @Transactional(readOnly = true)
+    public boolean tieneVentas(Long productoId) {
+        return detalles.existsByProductoId(productoId);
     }
 
     private String mensajeRemoto(HttpStatusCodeException ex) {

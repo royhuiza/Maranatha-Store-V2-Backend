@@ -9,7 +9,15 @@ import java.util.ArrayList;
 import java.util.List;
 
 public class CrearVentaRequest {
+    private com.libreria.ventas.model.MetodoPago metodoPago;
+    public com.libreria.ventas.model.MetodoPago getMetodoPago() { return metodoPago; }
+    public void setMetodoPago(com.libreria.ventas.model.MetodoPago value) { metodoPago = value; }
     private Long clienteId;
+    /** DNI (8) o RUC (11) escrito por el vendedor cuando no hay cliente registrado. Solo se guarda. */
+    @jakarta.validation.constraints.Pattern(regexp = "^$|\\d{8}|\\d{11}", message = "El documento debe tener 8 (DNI) u 11 (RUC) digitos")
+    private String documento;
+    public String getDocumento() { return documento; }
+    public void setDocumento(String documento) { this.documento = documento; }
     @NotNull(message = "El tipo de comprobante es obligatorio")
     private TipoComprobante tipoComprobante = TipoComprobante.BOLETA;
     @Valid

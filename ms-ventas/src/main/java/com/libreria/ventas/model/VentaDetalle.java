@@ -6,7 +6,11 @@ import jakarta.persistence.*;
 import java.math.BigDecimal;
 
 @Entity
-@Table(name = "ventas_detalle")
+// T68: índices para cargar el detalle de cada venta y saber si un producto tiene ventas.
+@Table(name = "ventas_detalle", indexes = {
+        @Index(name = "idx_ventas_detalle_venta", columnList = "venta_id"),
+        @Index(name = "idx_ventas_detalle_producto", columnList = "producto_id")
+})
 public class VentaDetalle {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)

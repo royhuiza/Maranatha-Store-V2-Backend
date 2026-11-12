@@ -9,5 +9,7 @@ public interface VentaService {
     List<Venta> listarVentas();
     Venta obtenerVenta(Long id);
     Venta crearVenta(CrearVentaRequest request);
+    boolean tieneVentas(Long productoId);
     Venta anularVenta(Long id);
+    void eliminarVenta(Long id);
 }

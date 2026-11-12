@@ -8,7 +8,11 @@ import java.util.ArrayList;
 import java.util.List;
 
 @Entity
-@Table(name = "ventas")
+// T68: índices para filtrar el historial por fecha y por serie/número de comprobante.
+@Table(name = "ventas", indexes = {
+        @Index(name = "idx_ventas_fecha", columnList = "fecha"),
+        @Index(name = "idx_ventas_serie_numero", columnList = "serie, numero")
+})
 public class Venta {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -43,6 +47,19 @@ public class Venta {
     @Column(nullable = false, length = 20)
     private EstadoVenta estado;
 
+    @Column(name = "estado_pago", nullable = false, columnDefinition = "varchar(30) default 'PENDIENTE'")
+    private String estadoPago = "PENDIENTE";
+    public String getEstadoPago() { return estadoPago; }
+    public void setEstadoPago(String estadoPago) { this.estadoPago = estadoPago; }
+    @Column(name = "validado_sunat", nullable = false, columnDefinition = "boolean default false")
+    private boolean validadoSunat;
+    public boolean isValidadoSunat() { return validadoSunat; }
+    public void setValidadoSunat(boolean value) { validadoSunat = value; }
+    @Enumerated(EnumType.STRING)
+    @Column(name = "metodo_pago", length = 30)
+    private MetodoPago metodoPago;
+    public MetodoPago getMetodoPago() { return metodoPago; }
+    public void setMetodoPago(MetodoPago value) { metodoPago = value; }
     @OneToMany(mappedBy = "venta", cascade = CascadeType.ALL, orphanRemoval = true)
     @OrderBy("id ASC")
     private List<VentaDetalle> detalles = new ArrayList<>();
@@ -62,8 +79,15 @@ public class Venta {
     public void setClienteNombre(String clienteNombre) { this.clienteNombre = clienteNombre; }
     public String getClienteDocumento() { return clienteDocumento; }
     public void setClienteDocumento(String clienteDocumento) { this.clienteDocumento = clienteDocumento; }
-    public LocalDateTime getFecha() { return fecha; }
+    // Preserve the original database timestamp; convert only when its origin is known.
+    @Column(name="fecha_zona", length=40)
+    private String fechaZona;
+    public String getFechaZona() { return fechaZona; }
+    public void setFechaZona(String zone) { fechaZona=zone; }
+    public java.time.OffsetDateTime getFecha() { return PeruTime.fromStored(fecha,fechaZona); }
     public void setFecha(LocalDateTime fecha) { this.fecha = fecha; }
+    public BigDecimal getBaseImponible() { return total == null ? BigDecimal.ZERO : total.divide(new BigDecimal("1.18"), 2, java.math.RoundingMode.HALF_UP); }
+    public BigDecimal getIgv() { return total == null ? BigDecimal.ZERO : total.subtract(getBaseImponible()); }
     public BigDecimal getTotal() { return total; }
     public void setTotal(BigDecimal total) { this.total = total; }
     public TipoComprobante getTipoComprobante() { return tipoComprobante; }

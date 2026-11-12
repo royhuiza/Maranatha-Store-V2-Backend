@@ -1,11 +1,16 @@
+name: maranatha-backend
+
 services:
-  postgres:
+  # ------------------------------------------------------------------
+  # Infraestructura compartida
+  # ------------------------------------------------------------------
+  maranatha-postgres:
     image: postgres:15-alpine
     container_name: maranatha-postgres
     restart: unless-stopped
     environment:
       POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: admin123
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-admin123}
       POSTGRES_DB: postgres
     ports:
       - "5432:5432"
@@ -17,97 +22,327 @@ services:
       interval: 5s
       timeout: 5s
       retries: 20
+    networks:
+      maranatha-net:
+        aliases:
+          - postgres
+          - maranatha-postgres
 
+  maranatha-redis:
+    image: redis:7-alpine
+    container_name: maranatha-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    networks:
+      maranatha-net:
+        aliases:
+          - redis
+          - maranatha-redis
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # ------------------------------------------------------------------
+  # Microservicios del dominio
+  # ------------------------------------------------------------------
   ms-auth:
+    image: maranatha-store-v2-backend-ms-auth:latest
     build:
       context: .
       dockerfile: ms-auth/Dockerfile
     container_name: maranatha-auth
     environment:
+      SPRING_MAIL_HOST: ${SMTP_HOST:-}
+      SPRING_MAIL_PORT: ${SMTP_PORT:-587}
+      SPRING_MAIL_USERNAME: ${SMTP_USERNAME:-}
+      SPRING_MAIL_PASSWORD: ${SMTP_PASSWORD:-}
+      SPRING_MAIL_PROPERTIES_MAIL_SMTP_AUTH: ${SMTP_AUTH:-true}
+      SPRING_MAIL_PROPERTIES_MAIL_SMTP_STARTTLS_ENABLE: ${SMTP_STARTTLS:-true}
+      SPRING_MAIL_PROPERTIES_MAIL_SMTP_CONNECTIONTIMEOUT: 5000
+      SPRING_MAIL_PROPERTIES_MAIL_SMTP_TIMEOUT: 5000
+      RECOVERY_MAIL_FROM: ${SMTP_FROM:-}
+      FRONTEND_URL: ${FRONTEND_URL:-http://localhost:4200}
       SERVER_PORT: 8081
-      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/db_auth
+      SPRING_DATASOURCE_URL: jdbc:postgresql://maranatha-postgres:5432/db_auth
       SPRING_DATASOURCE_USERNAME: postgres
-      SPRING_DATASOURCE_PASSWORD: admin123
-      JWT_SECRET: MaranathaStoreClaveSuperSeguraJWT2026Maranatha
+      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD:-admin123}
+      JWT_SECRET: ${JWT_SECRET:-MaranathaStoreClaveSuperSeguraJWT2026Maranatha}
       EUREKA_ENABLED: "false"
     ports: ["8081:8081"]
     depends_on:
-      postgres:
+      maranatha-postgres:
         condition: service_healthy
+    networks:
+      - maranatha-net
+    volumes:
+      - ~/.m2:/root/.m2
 
   ms-producto:
+    image: maranatha-store-v2-backend-ms-producto:latest
     build:
       context: .
       dockerfile: ms-producto/Dockerfile
     container_name: maranatha-productos
     environment:
       SERVER_PORT: 8082
-      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/db_producto
+      VENTAS_SERVICE_URL: http://ms-ventas:8084
+      SPRING_DATASOURCE_URL: jdbc:postgresql://maranatha-postgres:5432/db_producto
       SPRING_DATASOURCE_USERNAME: postgres
-      SPRING_DATASOURCE_PASSWORD: admin123
+      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD:-admin123}
+      JWT_SECRET: ${JWT_SECRET:-MaranathaStoreClaveSuperSeguraJWT2026Maranatha}
       EUREKA_ENABLED: "false"
     ports: ["8082:8082"]
     depends_on:
-      postgres:
+      maranatha-postgres:
         condition: service_healthy
+    networks:
+      - maranatha-net
+    volumes:
+      - ~/.m2:/root/.m2
 
   ms-cliente:
+    image: maranatha-store-v2-backend-ms-cliente:latest
     build:
       context: .
       dockerfile: ms-cliente/Dockerfile
     container_name: maranatha-clientes
     environment:
       SERVER_PORT: 8083
-      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/db_cliente
+      SPRING_DATASOURCE_URL: jdbc:postgresql://maranatha-postgres:5432/db_cliente
       SPRING_DATASOURCE_USERNAME: postgres
-      SPRING_DATASOURCE_PASSWORD: admin123
+      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD:-admin123}
+      JWT_SECRET: ${JWT_SECRET:-MaranathaStoreClaveSuperSeguraJWT2026Maranatha}
+      # Clave de Decolecta (proveedor de DNI/RUC). Sin ella la consulta de
+      # documentos responde 503 y la web no puede validar clientes.
+      DECOLECTA_API_KEY: ${DECOLECTA_API_KEY:-}
       EUREKA_ENABLED: "false"
     ports: ["8083:8083"]
     depends_on:
-      postgres:
+      maranatha-postgres:
         condition: service_healthy
+    networks:
+      - maranatha-net
+    volumes:
+      - ~/.m2:/root/.m2
 
   ms-ventas:
+    image: maranatha-store-v2-backend-ms-ventas:latest
     build:
       context: .
       dockerfile: ms-ventas/Dockerfile
     container_name: maranatha-ventas
     environment:
       SERVER_PORT: 8084
-      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/db_ventas
+      SPRING_DATASOURCE_URL: jdbc:postgresql://maranatha-postgres:5432/db_ventas
       SPRING_DATASOURCE_USERNAME: postgres
-      SPRING_DATASOURCE_PASSWORD: admin123
+      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD:-admin123}
       PRODUCTO_SERVICE_URL: http://ms-producto:8082
       CLIENTE_SERVICE_URL: http://ms-cliente:8083
+      JWT_SECRET: ${JWT_SECRET:-MaranathaStoreClaveSuperSeguraJWT2026Maranatha}
       EUREKA_ENABLED: "false"
     ports: ["8084:8084"]
     depends_on:
-      postgres:
+      maranatha-postgres:
         condition: service_healthy
       ms-producto:
         condition: service_started
       ms-cliente:
         condition: service_started
+    networks:
+      - maranatha-net
+    volumes:
+      - ~/.m2:/root/.m2
 
+  ms-facturacion:
+    image: maranatha-backend-ms-facturacion:latest
+    build:
+      context: .
+      dockerfile: ms-facturacion/Dockerfile
+    container_name: maranatha-facturacion
+    restart: unless-stopped
+    environment:
+      SERVER_PORT: 8085
+      JWT_SECRET: ${JWT_SECRET:-MaranathaStoreClaveSuperSeguraJWT2026Maranatha}
+      EUREKA_ENABLED: "false"
+      CONSULTA_RUC_ENABLED: "true"
+      MS_CLIENTE_URL: http://ms-cliente:8083
+    expose:
+      - "8085"
+    depends_on:
+      ms-cliente:
+        condition: service_started
+    networks:
+      - maranatha-net
+
+  # ------------------------------------------------------------------
+  # Chat (n8n + Evolution API / WhatsApp)
+  # ------------------------------------------------------------------
+  ms-chat:
+    image: maranatha-backend-ms-chat:latest
+    build:
+      context: .
+      dockerfile: ms-chat/Dockerfile
+    container_name: maranatha-chat
+    environment:
+      SERVER_PORT: 8087
+      EUREKA_ENABLED: "false"
+      N8N_URL: http://maranatha-n8n:5678/webhook/maranatha-chat
+      EVOLUTION_API_URL: http://maranatha-whatsapp:8080
+      EVOLUTION_API_KEY: ${EVOLUTION_API_KEY:-maranatha_secret_key_2026}
+      EVOLUTION_API_INSTANCE: ${EVOLUTION_API_INSTANCE:-maranatha-store}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    ports: ["8087:8087"]
+    depends_on:
+      maranatha-n8n:
+        condition: service_started
+      maranatha-whatsapp:
+        condition: service_started
+      maranatha-whatsapp-init:
+        condition: service_completed_successfully
+    networks:
+      - maranatha-net
+    volumes:
+      - ~/.m2:/root/.m2
+
+  maranatha-n8n:
+    image: n8nio/n8n:latest
+    container_name: maranatha-n8n
+    restart: unless-stopped
+    ports:
+      - "5678:5678"
+    environment:
+      - N8N_BASIC_AUTH_ACTIVE=false
+      - N8N_HOST=maranatha-n8n
+      - N8N_PORT=5678
+      - N8N_PROTOCOL=http
+      - NODE_ENV=production
+      - GENERIC_TIMEZONE=America/Lima
+      # Importa y publica el workflow del chatbot antes de arrancar n8n, para
+      # que el webhook /webhook/maranatha-chat quede registrado.
+      - N8N_WORKFLOW_FILE=/workflow/workflow.json
+      - N8N_DB_FILE=/home/node/.n8n/database.sqlite
+      - N8N_PUBLISH_SCRIPT=/init/publish-n8n-workflow.js
+      - N8N_CREDENTIALS_SCRIPT=/init/n8n-credentials.js
+      # Credenciales que crea el script de credenciales del workflow.
+      - GEMINI_API_KEY=${GEMINI_API_KEY:-}
+      - POSTGRES_HOST=maranatha-postgres
+      - POSTGRES_PORT=5432
+      - POSTGRES_DATABASE=postgres
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-admin123}
+    entrypoint: ["/bin/sh", "/init/init-n8n-workflow.sh", "--start"]
+    volumes:
+      - ./docker/init-n8n-workflow.sh:/init/init-n8n-workflow.sh:ro
+      - ./docker/publish-n8n-workflow.js:/init/publish-n8n-workflow.js:ro
+      - ./docker/n8n-credentials.js:/init/n8n-credentials.js:ro
+      - ./docker/n8n-cipher.js:/init/n8n-cipher.js:ro
+      - ./My workflow.json:/workflow/workflow.json:ro
+    networks:
+      - maranatha-net
+
+  maranatha-whatsapp:
+    # v2.3.7 es el ultimo tag estable de la linea 2.x con soporte de QR.
+    image: evoapicloud/evolution-api:v2.3.7
+    container_name: maranatha-whatsapp
+    # Sin esta politica, si Baileys se cae el contenedor queda apagado para
+    # siempre y el QR deja de emitirse.
+    restart: unless-stopped
+    ports:
+      - "8086:8080"
+    environment:
+      - SERVER_URL=http://localhost:8086
+      - DOCKER_ENV=true
+      - API_KEY=${EVOLUTION_API_KEY:-maranatha_secret_key_2026}
+      - AUTHENTICATION_API_KEY=${EVOLUTION_API_KEY:-maranatha_secret_key_2026}
+      - DATABASE_ENABLED=true
+      - DATABASE_PROVIDER=postgresql
+      # Evolution API usa un schema propio ("evolution") dentro de la base
+      # postgres. Prisma crea el schema solo en el primer arranque, asi que
+      # este servicio no depende de que el volumen de datos ya exista.
+      - DATABASE_CONNECTION_URI=postgresql://postgres:${POSTGRES_PASSWORD:-admin123}@maranatha-postgres:5432/postgres?schema=evolution
+      - DATABASE_CLIENT_NAME=evolution_db
+      - CACHE_REDIS_ENABLED=true
+      - CACHE_REDIS_URI=redis://maranatha-redis:6379/6
+      - CACHE_REDIS_PREFIX_KEY=evolution
+      # Guarda la sesion de Baileys (credenciales) en Redis. Sin esto, al
+      # reiniciar el contenedor se pierde la sesion emparejada y el telefono
+      # tiene que volver a escanear un QR nuevo.
+      - CACHE_REDIS_SAVE_INSTANCES=true
+    # Espera a que Redis y PostgreSQL esten listos: sin eso Evolution API
+    # entra en un bucle de reconexion y se queda sin sesion.
+    depends_on:
+      maranatha-postgres:
+        condition: service_healthy
+      maranatha-redis:
+        condition: service_healthy
+    networks:
+      - maranatha-net
+
+  # Registra la instancia de WhatsApp en Evolution API (idempotente).
+  # Corre una vez y termina; el resto del stack no depende de el.
+  # El nombre lleva "-setup" para que no se confunda con maranatha-whatsapp.
+  maranatha-whatsapp-init:
+    image: alpine:3.20
+    container_name: maranatha-whatsapp-setup
+    restart: "no"
+    entrypoint: ["/bin/sh", "/init/init-whatsapp-instance.sh"]
+    environment:
+      EVOLUTION_API_URL: http://maranatha-whatsapp:8080
+      EVOLUTION_API_KEY: ${EVOLUTION_API_KEY:-maranatha_secret_key_2026}
+      EVOLUTION_API_INSTANCE: ${EVOLUTION_API_INSTANCE:-maranatha-store}
+    volumes:
+      - ./docker/init-whatsapp-instance.sh:/init/init-whatsapp-instance.sh:ro
+    depends_on:
+      maranatha-whatsapp:
+        condition: service_started
+    networks:
+      - maranatha-net
+
+  # ------------------------------------------------------------------
+  # API Gateway
+  # ------------------------------------------------------------------
   api-gateway:
+    image: maranatha-store-v2-backend-api-gateway:latest
     build:
       context: .
       dockerfile: api-gateway/Dockerfile
     container_name: maranatha-gateway
     environment:
+      FACTURACION_SERVICE_URL: http://ms-facturacion:8085
+      CHAT_SERVICE_URL: http://ms-chat:8087
       SERVER_PORT: 8080
       AUTH_SERVICE_URL: http://ms-auth:8081
       PRODUCTO_SERVICE_URL: http://ms-producto:8082
       CLIENTE_SERVICE_URL: http://ms-cliente:8083
       VENTAS_SERVICE_URL: http://ms-ventas:8084
-      JWT_SECRET: MaranathaStoreClaveSuperSeguraJWT2026Maranatha
+      JWT_SECRET: ${JWT_SECRET:-MaranathaStoreClaveSuperSeguraJWT2026Maranatha}
       EUREKA_ENABLED: "false"
     ports: ["8080:8080"]
     depends_on:
-      - ms-auth
-      - ms-producto
-      - ms-cliente
-      - ms-ventas
+      ms-auth:
+        condition: service_started
+      ms-producto:
+        condition: service_started
+      ms-cliente:
+        condition: service_started
+      ms-ventas:
+        condition: service_started
+      ms-facturacion:
+        condition: service_started
+      ms-chat:
+        condition: service_started
+    networks:
+      - maranatha-net
+    volumes:
+      - ~/.m2:/root/.m2
+
+networks:
+  maranatha-net:
+    driver: bridge
 
 volumes:
   postgres_data:

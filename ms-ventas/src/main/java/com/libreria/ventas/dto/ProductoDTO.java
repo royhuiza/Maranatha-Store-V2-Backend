@@ -9,6 +9,7 @@ public class ProductoDTO {
     private BigDecimal precio;
     private Integer stock;
     private Boolean activo;
+    private String afectacionIgv;
 
     public ProductoDTO() {}
     public Long getId() { return id; }
@@ -23,4 +24,12 @@ public class ProductoDTO {
     public void setStock(Integer stock) { this.stock = stock; }
     public Boolean getActivo() { return activo; }
     public void setActivo(Boolean activo) { this.activo = activo; }
+
+    public String getAfectacionIgv() {
+        return afectacionIgv;
+    }
+
+    public void setAfectacionIgv(String afectacionIgv) {
+        this.afectacionIgv = afectacionIgv;
+    }
 }
