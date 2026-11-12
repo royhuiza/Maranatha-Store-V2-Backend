@@ -53,10 +53,7 @@ public class MaranataChatController {
         String respuesta = responderSegunBD(mensaje);
 
         if (respuesta == null) {
-            ChatResponseDTO n8nResponse = n8nService.sendMessage(request);
-            respuesta = n8nResponse != null && n8nResponse.getReply() != null
-                    ? n8nResponse.getReply()
-                    : "Lo siento, no pude procesar tu mensaje.";
+            respuesta = responderConFallback(mensaje);
         }
 
         chatLogs.registrar("app", "entrada", mensaje, "procesado");
@@ -86,10 +83,7 @@ public class MaranataChatController {
         String respuesta = responderSegunBD(conversation);
 
         if (respuesta == null) {
-            ChatResponseDTO n8nResponse = n8nService.sendMessage(chatRequest);
-            respuesta = n8nResponse != null && n8nResponse.getReply() != null
-                    ? n8nResponse.getReply()
-                    : "Lo siento, no pude procesar tu mensaje.";
+            respuesta = responderConFallback(conversation);
         }
 
         SendTextRequestDTO sendTextRequest = new SendTextRequestDTO(remoteJid, respuesta);
@@ -142,6 +136,25 @@ public class MaranataChatController {
         sb.append("¿Te interesa alguno de estos productos? Dime el nombre y con gusto te ayudo.");
 
         return sb.toString();
+    }
+
+    private String responderConFallback(String mensaje) {
+        String lower = mensaje == null ? "" : mensaje.toLowerCase();
+
+        if (lower.contains("hola") || lower.contains("buenos") || lower.contains("buenas")
+                || lower.contains("saludo") || lower.contains("inicio")) {
+            return "¡Hola! Bienvenido a Maranatha Store. ¿En qué te puedo ayudar hoy?\n\n"
+                    + "Puedes consultarme por nuestros productos escribiendo \"productos\" o el nombre de lo que buscas.\n"
+                    + "También puedo ayudarte con información sobre ventas y clientes del sistema.";
+        }
+
+        if (lower.contains("producto") || lower.contains("precio") || lower.contains("stock")) {
+            return "No pude consultar los productos en este momento. Asegúrate de que el servicio de productos esté disponible.\n\n"
+                    + "Intenta nuevamente más tarde o escríbeme qué producto estás buscando.";
+        }
+
+        return "¡Hola! Soy el asistente de Maranatha Store. ¿En qué te puedo ayudar?\n\n"
+                + "Puedes preguntarme por productos, precios o stock del catálogo.";
     }
 
     @GetMapping("/whatsapp/qr")
