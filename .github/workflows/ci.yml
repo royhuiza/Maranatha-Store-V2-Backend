@@ -1,0 +1,73 @@
+name: CI - Maranatha Store V2 Backend
+
+on:
+  push:
+    branches:
+      - master
+      - qa/integracion-backend
+      - feature/**
+  pull_request:
+    branches:
+      - master
+      - qa/integracion-backend
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        module:
+          - ms-auth
+          - ms-producto
+          - ms-cliente
+          - ms-ventas
+          - ms-chat
+          - ms-facturacion
+          - api-gateway
+
+    steps:
+      - name: Checkout código
+        uses: actions/checkout@v4
+
+      - name: Instalar JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+          cache: maven
+
+      - name: Dar permisos al wrapper de Maven
+        run: chmod +x mvnw || true
+
+      - name: Compilar y ejecutar pruebas de ${{ matrix.module }}
+        run: ./mvnw -pl ${{ matrix.module }} -am test -DskipTests=false -B
+        timeout-minutes: 10
+
+      - name: Subir reporte de pruebas
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-reports-${{ matrix.module }}
+          path: ${{ matrix.module }}/target/surefire-reports/*.xml
+
+  compile-all:
+    runs-on: ubuntu-latest
+    needs: build-and-test
+    steps:
+      - name: Checkout código
+        uses: actions/checkout@v4
+
+      - name: Instalar JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+          cache: maven
+
+      - name: Dar permisos al wrapper de Maven
+        run: chmod +x mvnw || true
+
+      - name: Compilar todo el proyecto (sin pruebas)
+        run: ./mvnw clean compile -DskipTests -B
+        timeout-minutes: 15
