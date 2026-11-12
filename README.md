@@ -107,21 +107,46 @@
 
 ### Opción A: Docker (recomendado, todo el stack)
 
+**Caso 1: No tienes el proyecto en tu PC (primera vez)**
+
 ```powershell
-# 1. Clonar o actualizar la rama principal
+# 1. Clonar el repositorio
 git clone https://github.com/royhuiza/Maranatha-Store-V2-Backend.git
 cd Maranatha-Store-V2-Backend
+
+# 2. Asegurarte de estar en la rama principal y traer los últimos cambios
 git checkout master
 git pull origin master
 
-# 2. Copiar el archivo de variables de entorno (editar con tus claves reales)
+# 3. Copiar el archivo de variables de entorno (editar con tus claves reales)
 #    Copia .env.example a .env y completa DECOLECTA_API_KEY si la tienes
 Copy-Item .env.example .env
 
-# 3. Levantar todo el stack con Docker
+# 4. Levantar todo el stack con Docker
 docker compose up -d --build
 
-# 4. Verificar que todos los contenedores estén arriba
+# 5. Verificar que todos los contenedores estén arriba
+docker compose ps
+```
+
+**Caso 2: Ya tienes el proyecto en tu PC (actualizar)**
+
+```powershell
+# 1. Ir a la carpeta del proyecto
+cd Maranatha-Store-V2-Backend
+
+# 2. Cambiar a la rama principal y traer los últimos cambios
+git checkout master
+git pull origin master
+
+# 3. Copiar el archivo de variables de entorno (si aún no lo has hecho)
+#    Copia .env.example a .env y completa DECOLECTA_API_KEY si la tienes
+Copy-Item .env.example .env
+
+# 4. Reconstruir y levantar el stack con Docker
+docker compose up -d --build
+
+# 5. Verificar que todos los contenedores estén arriba
 docker compose ps
 ```
 
