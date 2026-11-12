@@ -88,13 +88,17 @@ public class ClienteServiceImpl implements ClienteService {
                     "Tipo y numero de documento son obligatorios"
             );
         }
-        return repository.findByTipoDocumentoAndNumeroDocumento(
+        Cliente encontrado = repository.findByTipoDocumentoAndNumeroDocumento(
                 tipoDocumento.toUpperCase(java.util.Locale.ROOT),
                 numeroDocumento.trim()
-        ).orElseThrow(() -> new ResponseStatusException(
-                HttpStatus.NOT_FOUND,
-                "Cliente no encontrado con documento " + tipoDocumento + " " + numeroDocumento
-        ));
+        );
+        if (encontrado == null) {
+            throw new ResponseStatusException(
+                    HttpStatus.NOT_FOUND,
+                    "Cliente no encontrado con documento " + tipoDocumento + " " + numeroDocumento
+            );
+        }
+        return encontrado;
     }
 
     private void normalizar(Cliente cliente) {
