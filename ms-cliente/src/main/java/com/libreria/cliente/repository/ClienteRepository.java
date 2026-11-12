@@ -8,4 +8,6 @@ public interface ClienteRepository extends JpaRepository<Cliente, Long> {
     boolean existsByNumeroDocumento(String numeroDocumento);
     boolean existsByEmailIgnoreCaseAndIdNot(String email, Long id);
     boolean existsByNumeroDocumentoAndIdNot(String numeroDocumento, Long id);
+
+    Cliente findByTipoDocumentoAndNumeroDocumento(String tipoDocumento, String numeroDocumento);
 }

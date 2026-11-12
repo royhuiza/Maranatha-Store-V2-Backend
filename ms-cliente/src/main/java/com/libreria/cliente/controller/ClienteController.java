@@ -48,4 +48,13 @@ public class ClienteController {
         service.eliminarCliente(id);
         return ResponseEntity.noContent().build();
     }
+
+    @GetMapping("/documento/{tipoDocumento}/{numeroDocumento}")
+    @Operation(summary = "Buscar cliente por tipo y numero de documento (DNI o RUC)")
+    public Cliente obtenerClientePorDocumento(
+            @PathVariable String tipoDocumento,
+            @PathVariable String numeroDocumento
+    ) {
+        return service.obtenerClientePorDocumento(tipoDocumento, numeroDocumento);
+    }
 }

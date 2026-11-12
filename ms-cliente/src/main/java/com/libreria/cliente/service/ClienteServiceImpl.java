@@ -79,6 +79,24 @@ public class ClienteServiceImpl implements ClienteService {
         repository.delete(obtenerCliente(id));
     }
 
+    @Override
+    @Transactional(readOnly = true)
+    public Cliente obtenerClientePorDocumento(String tipoDocumento, String numeroDocumento) {
+        if (tipoDocumento == null || numeroDocumento == null) {
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST,
+                    "Tipo y numero de documento son obligatorios"
+            );
+        }
+        return repository.findByTipoDocumentoAndNumeroDocumento(
+                tipoDocumento.toUpperCase(java.util.Locale.ROOT),
+                numeroDocumento.trim()
+        ).orElseThrow(() -> new ResponseStatusException(
+                HttpStatus.NOT_FOUND,
+                "Cliente no encontrado con documento " + tipoDocumento + " " + numeroDocumento
+        ));
+    }
+
     private void normalizar(Cliente cliente) {
         String nombre = nullable(cliente.getNombre());
 

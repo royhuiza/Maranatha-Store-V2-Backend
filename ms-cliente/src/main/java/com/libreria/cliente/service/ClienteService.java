@@ -14,4 +14,6 @@ public interface ClienteService {
     Cliente actualizarCliente(Long id, Cliente cliente);
 
     void eliminarCliente(Long id);
+
+    Cliente obtenerClientePorDocumento(String tipoDocumento, String numeroDocumento);
 }

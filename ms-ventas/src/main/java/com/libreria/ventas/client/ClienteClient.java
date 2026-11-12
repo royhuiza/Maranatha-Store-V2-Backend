@@ -2,6 +2,7 @@ package com.libreria.ventas.client;
 
 import com.libreria.ventas.dto.ClienteDTO;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestTemplate;
 
@@ -17,5 +18,13 @@ public class ClienteClient {
 
     public ClienteDTO obtenerCliente(Long clienteId) {
         return restTemplate.getForObject(baseUrl + "/clientes/" + clienteId, ClienteDTO.class);
+    }
+
+    public ClienteDTO obtenerClientePorDocumento(String tipoDocumento, String numeroDocumento) {
+        return restTemplate.getForObject(
+                baseUrl + "/clientes/documento/{tipo}/{numero}",
+                ClienteDTO.class,
+                tipoDocumento, numeroDocumento
+        );
     }
 }

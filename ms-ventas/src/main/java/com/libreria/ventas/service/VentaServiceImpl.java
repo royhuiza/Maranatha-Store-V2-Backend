@@ -138,7 +138,24 @@ public class VentaServiceImpl implements VentaService {
 
     private ClienteDTO obtenerYValidarCliente(CrearVentaRequest request) {
         ClienteDTO cliente = null;
-        if (request.getClienteId() != null) {
+
+        String documento = request.getDocumento() == null ? "" : request.getDocumento().trim();
+        if (!documento.isEmpty()) {
+            String tipo = documento.length() == 11 ? "RUC" : "DNI";
+            try {
+                cliente = clienteClient.obtenerClientePorDocumento(tipo, documento);
+            } catch (org.springframework.web.client.HttpClientErrorException.NotFound ex) {
+                cliente = null;
+            } catch (org.springframework.web.client.HttpClientErrorException ex) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                        "No se pudo validar el documento " + documento, ex);
+            } catch (org.springframework.web.client.ResourceAccessException ex) {
+                throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE,
+                        "No se pudo comunicar con el servicio de clientes", ex);
+            }
+        }
+
+        if (cliente == null && request.getClienteId() != null) {
             try {
                 cliente = clienteClient.obtenerCliente(request.getClienteId());
             } catch (HttpStatusCodeException ex) {
