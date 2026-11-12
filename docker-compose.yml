@@ -1,3 +1,4 @@
+name: maranatha-backend
 services:
   postgres:
     image: postgres:15-alpine
@@ -5,7 +6,7 @@ services:
     restart: unless-stopped
     environment:
       POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: admin123
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Configura POSTGRES_PASSWORD}
       POSTGRES_DB: postgres
     ports:
       - "5432:5432"
@@ -17,68 +18,118 @@ services:
       interval: 5s
       timeout: 5s
       retries: 20
+    networks:
+      - maranatha-net
+
+  redis:
+    image: redis:7-alpine
+    container_name: maranatha-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    networks:
+      - maranatha-net
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
 
   ms-auth:
+    image: maranatha-store-v2-backend-ms-auth:latest
     build:
       context: .
       dockerfile: ms-auth/Dockerfile
     container_name: maranatha-auth
     environment:
+      SPRING_MAIL_HOST: ${SMTP_HOST:-}
+      SPRING_MAIL_PORT: ${SMTP_PORT:-587}
+      SPRING_MAIL_USERNAME: ${SMTP_USERNAME:-}
+      SPRING_MAIL_PASSWORD: ${SMTP_PASSWORD:-}
+      SPRING_MAIL_PROPERTIES_MAIL_SMTP_AUTH: ${SMTP_AUTH:-true}
+      SPRING_MAIL_PROPERTIES_MAIL_SMTP_STARTTLS_ENABLE: ${SMTP_STARTTLS:-true}
+      SPRING_MAIL_PROPERTIES_MAIL_SMTP_CONNECTIONTIMEOUT: 5000
+      SPRING_MAIL_PROPERTIES_MAIL_SMTP_TIMEOUT: 5000
+      SPRING_MAIL_PROPERTIES_MAIL_SMTP_WRITETIMEOUT: 5000
+      RECOVERY_MAIL_FROM: ${SMTP_FROM:-}
+      FRONTEND_URL: ${FRONTEND_URL:-http://localhost:4200}
       SERVER_PORT: 8081
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/db_auth
       SPRING_DATASOURCE_USERNAME: postgres
-      SPRING_DATASOURCE_PASSWORD: admin123
-      JWT_SECRET: MaranathaStoreClaveSuperSeguraJWT2026Maranatha
+      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD:?Configura POSTGRES_PASSWORD}
+      JWT_SECRET: ${JWT_SECRET:?Configura JWT_SECRET antes de iniciar}
       EUREKA_ENABLED: "false"
     ports: ["8081:8081"]
     depends_on:
       postgres:
         condition: service_healthy
+    networks:
+      - maranatha-net
+    volumes:
+      - ~/.m2:/root/.m2
 
   ms-producto:
+    image: maranatha-store-v2-backend-ms-producto:latest
     build:
       context: .
       dockerfile: ms-producto/Dockerfile
     container_name: maranatha-productos
     environment:
       SERVER_PORT: 8082
+      VENTAS_SERVICE_URL: http://ms-ventas:8084
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/db_producto
       SPRING_DATASOURCE_USERNAME: postgres
-      SPRING_DATASOURCE_PASSWORD: admin123
+      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD:?Configura POSTGRES_PASSWORD}
+      JWT_SECRET: ${JWT_SECRET:?Configura JWT_SECRET antes de iniciar}
       EUREKA_ENABLED: "false"
     ports: ["8082:8082"]
     depends_on:
       postgres:
         condition: service_healthy
+    networks:
+      - maranatha-net
+    volumes:
+      - ~/.m2:/root/.m2
 
   ms-cliente:
+    image: maranatha-store-v2-backend-ms-cliente:latest
     build:
       context: .
       dockerfile: ms-cliente/Dockerfile
     container_name: maranatha-clientes
     environment:
+      DECOLECTA_API_KEY: ${DECOLECTA_API_KEY:-}
       SERVER_PORT: 8083
+      JWT_SECRET: ${JWT_SECRET:?Configura JWT_SECRET antes de iniciar}
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/db_cliente
       SPRING_DATASOURCE_USERNAME: postgres
-      SPRING_DATASOURCE_PASSWORD: admin123
+      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD:?Configura POSTGRES_PASSWORD}
+      JWT_SECRET: ${JWT_SECRET:?Configura JWT_SECRET antes de iniciar}
       EUREKA_ENABLED: "false"
     ports: ["8083:8083"]
     depends_on:
       postgres:
         condition: service_healthy
+    networks:
+      - maranatha-net
+    volumes:
+      - ~/.m2:/root/.m2
 
   ms-ventas:
+    image: maranatha-store-v2-backend-ms-ventas:latest
     build:
       context: .
       dockerfile: ms-ventas/Dockerfile
     container_name: maranatha-ventas
     environment:
+      CULQI_TEST_SECRET_KEY: ${CULQI_TEST_SECRET_KEY:-}
       SERVER_PORT: 8084
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/db_ventas
       SPRING_DATASOURCE_USERNAME: postgres
-      SPRING_DATASOURCE_PASSWORD: admin123
+      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD:?Configura POSTGRES_PASSWORD}
       PRODUCTO_SERVICE_URL: http://ms-producto:8082
       CLIENTE_SERVICE_URL: http://ms-cliente:8083
+      JWT_SECRET: ${JWT_SECRET:?Configura JWT_SECRET antes de iniciar}
       EUREKA_ENABLED: "false"
     ports: ["8084:8084"]
     depends_on:
@@ -88,19 +139,76 @@ services:
         condition: service_started
       ms-cliente:
         condition: service_started
+    networks:
+      - maranatha-net
+    volumes:
+      - ~/.m2:/root/.m2
+
+  ms-chat:
+    build:
+      context: .
+      dockerfile: ms-chat/Dockerfile
+    container_name: maranatha-chat
+    environment:
+      SERVER_PORT: 8087
+      EUREKA_ENABLED: "false"
+      N8N_URL: http://maranatha-n8n:5678/webhook/maranatha-chat
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    ports: ["8087:8087"]
+    depends_on: []
+    networks:
+      - maranatha-net
+    volumes:
+      - ~/.m2:/root/.m2
+
+  maranatha-n8n:
+    image: n8nio/n8n:latest
+    container_name: maranatha-n8n
+    restart: unless-stopped
+    ports:
+      - "5678:5678"
+    environment:
+      - N8N_BASIC_AUTH_ACTIVE=false
+      - N8N_HOST=maranatha-n8n
+      - N8N_PORT=5678
+      - N8N_PROTOCOL=http
+      - NODE_ENV=production
+    networks:
+      - maranatha-net
+
+  ms-facturacion:
+    build:
+      context: .
+      dockerfile: ms-facturacion/Dockerfile
+    container_name: maranatha-facturacion
+    restart: unless-stopped
+    environment:
+      SERVER_PORT: 8085
+      JWT_SECRET: ${JWT_SECRET:?Configura JWT_SECRET antes de iniciar}
+      EUREKA_ENABLED: "false"
+      CONSULTA_RUC_ENABLED: "true"
+      MS_CLIENTE_URL: http://ms-cliente:8083
+    expose:
+      - "8085"
+    networks:
+      - maranatha-net
 
   api-gateway:
+    image: maranatha-store-v2-backend-api-gateway:latest
     build:
       context: .
       dockerfile: api-gateway/Dockerfile
     container_name: maranatha-gateway
     environment:
+      FACTURACION_SERVICE_URL: http://ms-facturacion:8085
+      CHAT_SERVICE_URL: http://ms-chat:8087
       SERVER_PORT: 8080
       AUTH_SERVICE_URL: http://ms-auth:8081
       PRODUCTO_SERVICE_URL: http://ms-producto:8082
       CLIENTE_SERVICE_URL: http://ms-cliente:8083
       VENTAS_SERVICE_URL: http://ms-ventas:8084
-      JWT_SECRET: MaranathaStoreClaveSuperSeguraJWT2026Maranatha
+      JWT_SECRET: ${JWT_SECRET:?Configura JWT_SECRET antes de iniciar}
       EUREKA_ENABLED: "false"
     ports: ["8080:8080"]
     depends_on:
@@ -108,6 +216,41 @@ services:
       - ms-producto
       - ms-cliente
       - ms-ventas
+      - ms-facturacion
+      - ms-chat
+    networks:
+      - maranatha-net
+    volumes:
+      - ~/.m2:/root/.m2
+
+  maranatha-whatsapp:
+    image: evoapicloud/evolution-api:latest
+    container_name: maranatha-whatsapp
+    ports:
+      - "8086:8080"
+    environment:
+      - SERVER_URL=http://localhost:8086
+      - DOCKER_ENV=true
+      - API_KEY=maranatha_secret_key_2026
+      - AUTHENTICATION_API_KEY=maranatha_secret_key_2026
+      - DATABASE_ENABLED=true
+      - DATABASE_PROVIDER=postgresql
+      - DATABASE_CONNECTION_URI=postgresql://postgres:${POSTGRES_PASSWORD:?Configura POSTGRES_PASSWORD}@postgres:5432/postgres?schema=public
+      - DATABASE_CLIENT_NAME=evolution_db
+      - CACHE_REDIS_ENABLED=true
+      - CACHE_REDIS_URI=redis://maranatha-redis:6379/6
+      - CACHE_REDIS_PREFIX_KEY=evolution
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - maranatha-net
+
+networks:
+  maranatha-net:
+    driver: bridge
 
 volumes:
   postgres_data:

@@ -41,7 +41,7 @@ public class AuthController {
         Authentication authentication = authenticationManager.authenticate(
                 new UsernamePasswordAuthenticationToken(request.getUsername(), request.getPassword()));
         String role = authentication.getAuthorities().stream().findFirst()
-                .map(Object::toString).orElse("ROLE_USER").replace("ROLE_", "");
+                .map(org.springframework.security.core.GrantedAuthority::getAuthority).orElse("ROLE_USER").replace("ROLE_", "");
         return new AuthResponse(jwtService.generateToken(authentication), authentication.getName(), role);
     }
 
@@ -49,6 +49,11 @@ public class AuthController {
     @Operation(summary = "Registrar usuario")
     public ResponseEntity<Usuario> register(@Valid @RequestBody UsuarioDTO dto) {
         dto.setRol(Rol.USER);
+        return ResponseEntity.status(HttpStatus.CREATED).body(authService.registrarUsuario(dto));
+    }
+
+    @PostMapping("/usuarios")
+    public ResponseEntity<Usuario> crearUsuario(@Valid @RequestBody UsuarioDTO dto) {
         return ResponseEntity.status(HttpStatus.CREATED).body(authService.registrarUsuario(dto));
     }
 

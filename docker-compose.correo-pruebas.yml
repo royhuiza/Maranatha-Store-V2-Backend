@@ -1,0 +1,16 @@
+# Local test inbox: messages never leave this machine.
+services:
+  mailpit:
+    image: axllent/mailpit:v1.27
+    container_name: maranatha-correo-pruebas
+    ports:
+      - "127.0.0.1:8025:8025"
+  ms-auth:
+    environment:
+      SPRING_MAIL_HOST: mailpit
+      SPRING_MAIL_PORT: 1025
+      SPRING_MAIL_USERNAME: ""
+      SPRING_MAIL_PASSWORD: ""
+      SPRING_MAIL_PROPERTIES_MAIL_SMTP_AUTH: "false"
+      SPRING_MAIL_PROPERTIES_MAIL_SMTP_STARTTLS_ENABLE: "false"
+      RECOVERY_MAIL_FROM: no-reply@maranatha.local
