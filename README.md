@@ -1,201 +1,246 @@
-# Maranatha Store V2 — Backend corregido
+# Maranatha Store V2 — Backend
 
-Backend de microservicios con Spring Boot 3.1.5, Java 17, PostgreSQL, JWT, Swagger/OpenAPI y API Gateway.
+<div align="center">
 
-## Funciones terminadas
+<img src="https://img.shields.io/badge/Java-17-007396?style=for-the-badge&logo=java&logoColor=white" />
+<img src="https://img.shields.io/badge/Spring%20Boot-3.1.5-6DB33F?style=for-the-badge&logo=spring-boot&logoColor=white" />
+<img src="https://img.shields.io/badge/PostgreSQL-15-4169E1?style=for-the-badge&logo=postgresql&logoColor=white" />
+<img src="https://img.shields.io/badge/JWT-000000?style=for-the-badge&logo=jsonwebtokens&logoColor=white" />
+<img src="https://img.shields.io/badge/Swagger-85EA2D?style=for-the-badge&logo=swagger&logoColor=black" />
+<img src="https://img.shields.io/badge/Docker-2496ED?style=for-the-badge&logo=docker&logoColor=white" />
 
-- Inicio de sesión JWT con usuario inicial `admin` y contraseña `admin123`.
-- Productos: registrar, guardar en PostgreSQL, listar, editar, eliminar y controlar stock.
-- Clientes: registrar personas o empresas, validar DNI/RUC, listar, editar y eliminar.
-- Ventas: validar cliente y productos, impedir ventas sin stock, recalcular precios y total en el servidor, descontar stock y guardar el detalle.
-- Comprobantes internos: boleta `B001`, factura `F001` y nota de pedido `NP01`, con número correlativo basado en el ID de la venta.
-- Anulación de venta con reposición de stock y conservación del historial.
-- Swagger unificado en el Gateway y colección Postman incluida.
+</div>
 
-> La emisión implementada es facturación interna del sistema. No envía XML ni comprobantes a SUNAT. La facturación electrónica SUNAT requiere RUC real, certificado digital y credenciales SOL/OSE/PSE.
+---
 
-## Puertos
+##  Características principales
 
-| Servicio | Puerto |
-|---|---:|
-| API Gateway | 8080 |
-| Autenticación | 8081 |
-| Productos | 8082 |
-| Clientes | 8083 |
-| Ventas | 8084 |
-| PostgreSQL | 5432 |
+<div align="center">
 
-Eureka y Config Server quedan como módulos auxiliares, pero no son necesarios para ejecutar la aplicación local: el Gateway usa URLs directas y configurables.
+<table>
+  <tr>
+    <td>
+      <div style="background:#e8f5e9;border-left:5px solid #4caf50;padding:12px;border-radius:6px;margin:4px;">
+        <strong style="color:#2e7d32;">🔐 Autenticación</strong><br>
+        JWT con usuario `admin` / `admin123`. Tokens seguros y expirables.
+      </div>
+    </td>
+    <td>
+      <div style="background:#e3f2fd;border-left:5px solid #2196f3;padding:12px;border-radius:6px;margin:4px;">
+        <strong style="color:#1565c0;">📦 Productos</strong><br>
+        CRUD completo, control de stock en PostgreSQL y validación de disponibilidad.
+      </div>
+    </td>
+    <td>
+      <div style="background:#fff3e0;border-left:5px solid #ff9800;padding:12px;border-radius:6px;margin:4px;">
+        <strong style="color:#e65100;">👥 Clientes</strong><br>
+        Registro de personas (DNI) y empresas (RUC), validación de documentos y listado.
+      </div>
+    </td>
+  </tr>
+  <tr>
+    <td>
+      <div style="background:#fce4ec;border-left:5px solid #e91e63;padding:12px;border-radius:6px;margin:4px;">
+        <strong style="color:#c2185b;">💰 Ventas</strong><br>
+        Validación de stock, descuento automático, totales calculados en servidor y comprobantes (Boleta/Factura/Nota de pedido).
+      </div>
+    </td>
+    <td>
+      <div style="background:#e0f7fa;border-left:5px solid #00bcd4;padding:12px;border-radius:6px;margin:4px;">
+        <strong style="color:#006064;">🧾 SUNAT / DNI</strong><br>
+        Consulta de documentos vía Decolecta (DNI/RUC) desde ms-cliente y ms-facturacion.
+      </div>
+    </td>
+    <td>
+      <div style="background:#f3e5f5;border-left:5px solid #9c27b0;padding:12px;border-radius:6px;margin:4px;">
+        <strong style="color:#6a1b9a;">🐳 Docker</strong><br>
+        Stack completo con docker-compose, PostgreSQL, Redis, n8n, WhatsApp y Chat.
+      </div>
+    </td>
+  </tr>
+</table>
 
-## Opción A: ejecutar el backend desde IntelliJ IDEA
+</div>
 
-### 1. Requisitos
+---
 
-- JDK 17.
-- PostgreSQL 15 o Docker Desktop.
-- IntelliJ IDEA con soporte Maven.
+##  Arquitectura de microservicios
 
-### 2. Preparar PostgreSQL
+```
+┌─────────────────────────────────────────────────────────────┐
+│                      API Gateway  :8080                     │
+└────────────────┬────────────────────────────────────────────┘
+                 │
+   ┌─────────────┼─────────────┬─────────────┬─────────────┐
+   ▼             ▼             ▼             ▼             ▼
+┌───────┐   ┌───────┐   ┌───────┐   ┌───────┐   ┌───────┐
+│ Auth  │   │ Producto│   │ Cliente│   │ Ventas │   │ Chat  │
+│ :8081 │   │  :8082 │   │  :8083 │   │ :8084 │   │ :8087 │
+└───────┘   └───────┘   └───────┘   └───────┘   └───────┘
+   │             │             │             │
+   ▼             ▼             ▼             ▼
+┌───────┐   ┌───────┐   ┌───────┐   ┌───────┐
+│ db_auth│  │db_producto│  │db_cliente│  │ db_ventas│
+└───────┘   └───────┘   └───────┘   └───────┘
+```
 
-La forma más sencilla es abrir PowerShell en esta carpeta y ejecutar:
+---
+
+##  Puertos de servicio
+
+| Servicio | Puerto | Descripción |
+|:---|:---:|:---|
+| API Gateway | 8080 | Punto de entrada único y Swagger unificado |
+| Autenticación (ms-auth) | 8081 | Login, JWT y gestión de usuarios |
+| Productos (ms-producto) | 8082 | Catálogo, stock y ajustes de inventario |
+| Clientes (ms-cliente) | 8083 | Clientes, consulta DNI/RUC (Decolecta) |
+| Ventas (ms-ventas) | 8084 | Registro, anulación y historial de ventas |
+| Facturación (ms-facturacion) | 8085 | Consulta RUC hacia ms-cliente (interno) |
+| Chat (ms-chat) | 8087 | Chatbot y QR de WhatsApp |
+| PostgreSQL | 5432 | Bases de datos por microservicio |
+| Redis | 6379 | Caché y sesiones |
+| n8n | 5678 | Automatizaciones y flujos de trabajo |
+
+---
+
+##  Inicio rápido
+
+### Opción A: IntelliJ IDEA (recomendado para desarrollo)
 
 ```powershell
+# 1. Levantar PostgreSQL con Docker
 docker compose up -d maranatha-postgres
-```
 
-Esto crea automáticamente estas bases:
-
-- `db_auth`
-- `db_producto`
-- `db_cliente`
-- `db_ventas`
-
-Usuario: `postgres`  
-Contraseña: `admin123`
-
-Si ya existe una instalación anterior con tablas incompatibles, ejecute una sola vez:
-
-```powershell
+# 2. Si las tablas están incompatibles, resetear una sola vez
 .\reset-postgres-docker.ps1
+
+# 3. Importar el pom.xml en IntelliJ con JDK 17
+# 4. Ejecutar en este orden:
+#    MsAuthApplication → MsProductoApplication → MsClienteApplication
+#    MsVentasApplication → ApiGatewayApplication
+
+# 5. Verificar
+#    http://localhost:8080/swagger-ui.html
+#    Login: admin / admin123
 ```
 
-Esto elimina el volumen anterior y crea bases limpias. Se perderán los datos antiguos.
-
-Para PostgreSQL instalado directamente en Windows, ejecute `crear-bases-postgresql.sql` con `psql` y verifique que la contraseña configurada en los cuatro archivos `application.properties` sea correcta.
-
-### 3. Importar el proyecto
-
-1. Abra IntelliJ IDEA.
-2. Seleccione **Open** y abra esta carpeta o el archivo `pom.xml` principal.
-3. Configure el Project SDK en Java 17.
-4. Espere a que Maven descargue las dependencias.
-
-### 4. Iniciar las aplicaciones
-
-Ejecute estas clases, cada una en una ventana de ejecución distinta:
-
-1. `MsAuthApplication`
-2. `MsProductoApplication`
-3. `MsClienteApplication`
-4. `MsVentasApplication`
-5. `ApiGatewayApplication`
-
-También puede abrir PowerShell como usuario normal y ejecutar:
+O usar el script:
 
 ```powershell
 .\iniciar-backend.ps1
 ```
 
-### 5. Verificar
-
-- Gateway: <http://localhost:8080>
-- Swagger completo: <http://localhost:8080/swagger-ui.html>
-- Login: `admin` / `admin123`
-
-## Opción B: ejecutar todo el backend con Docker
+### Opción B: Docker (todo el stack)
 
 ```powershell
 docker compose up -d --build
-```
-
-Todo el stack queda bajo el proyecto de Docker **`maranatha-backend`** y comparte la red **`maranatha-net`**:
-
-| Servicio | Contenedor | Puerto |
-|---|---|---:|
-| API Gateway | `maranatha-gateway` | 8080 |
-| Autenticación | `maranatha-auth` | 8081 |
-| Productos | `maranatha-productos` | 8082 |
-| Clientes | `maranatha-clientes` | 8083 |
-| Ventas | `maranatha-ventas` | 8084 |
-| Facturación | `maranatha-facturacion` | 8085 (interno) |
-| WhatsApp (Evolution API) | `maranatha-whatsapp` | 8086 |
-| Chat | `maranatha-chat` | 8087 |
-| n8n | `maranatha-n8n` | 5678 |
-| PostgreSQL | `maranatha-postgres` | 5432 |
-| Redis | `maranatha-redis` | 6379 |
-
-Verifique que todo pertenece al mismo grupo:
-
-```powershell
 docker compose ps
 ```
 
-### Endpoints de chat y QR
-
-`ms-chat` expone (también vía Gateway en `/api/v1/chat/...`, con token JWT):
-
-- `GET /api/v1/chat/whatsapp/qr` — consulta Evolution API y devuelve el QR en Base64.
-- `GET /api/v1/chat/logs` — bitácora reciente de la actividad del chatbot.
-
-La instancia de WhatsApp se registra sola al arrancar (`maranatha-whatsapp-init`, job idempotente).
-Para leer el QR:
-
-```powershell
-$token = (Invoke-RestMethod -Uri http://localhost:8080/auth/login -Method Post `
-  -ContentType "application/json" -Body '{"username":"admin","password":"admin123"}').token
-Invoke-RestMethod -Uri http://localhost:8080/api/v1/chat/whatsapp/qr -Headers @{ Authorization = "Bearer $token" }
-```
-
-Para detener:
+Para parar todo:
 
 ```powershell
 docker compose down
 ```
 
-Para borrar también las bases y comenzar de cero:
+Para borrar volúmenes y bases:
 
 ```powershell
 docker compose down -v
 ```
 
-## Swagger
+---
 
-Abra <http://localhost:8080/swagger-ui.html>. En la parte superior podrá elegir:
+##  Swagger y Postman
 
-- Autenticación
-- Productos
-- Clientes
-- Ventas
-- Chat
+**Swagger (Gateway unificado):**
+- http://localhost:8080/swagger-ui.html
 
-Primero ejecute `POST /auth/login`, copie el token y luego pulse **Authorize** en los módulos protegidos. Pegue solamente el token JWT.
+**Swagger directo por servicio:**
+- Auth: http://localhost:8081/swagger-ui.html
+- Productos: http://localhost:8082/swagger-ui.html
+- Clientes: http://localhost:8083/swagger-ui.html
+- Ventas: http://localhost:8084/swagger-ui.html
 
-Swagger directo por servicio:
-
-- <http://localhost:8081/swagger-ui.html>
-- <http://localhost:8082/swagger-ui.html>
-- <http://localhost:8083/swagger-ui.html>
-- <http://localhost:8084/swagger-ui.html>
-
-## Postman
-
-Importe los dos archivos de la carpeta `postman`:
-
+**Colección Postman:**
+Importar desde la carpeta `postman`:
 1. `Maranatha-Store-V2.postman_collection.json`
 2. `Maranatha-Store-Local.postman_environment.json`
 
-Ejecute primero **1. Autenticación → Iniciar sesión**. La prueba guarda el token automáticamente. Después ejecute productos, clientes y ventas en ese orden.
+Ejecutar primero **Autenticación → Iniciar sesión** para obtener el token JWT.
 
-## Compilar
+---
+
+##  Consulta de documentos (DNI / RUC)
+
+Los endpoints de consulta de documentos están expuestos en ms-cliente:
+
+```bash
+# Consultar DNI (8 dígitos)
+GET http://localhost:8083/clientes/documentos/dni/{numero}
+
+# Consultar RUC (11 dígitos)
+GET http://localhost:8083/clientes/documentos/ruc/{numero}
+```
+
+La consulta de RUC desde facturación se activa con:
+
+```properties
+consulta-ruc.enabled=true
+```
+
+La clave de Decolecta es obligatoria:
+
+```properties
+integrations.decolecta.api-key=SU_CLAVE_AQUI
+```
+
+> **Nota:** La facturación es interna del sistema. No envía XML ni comprobantes a SUNAT. Para facturación electrónica oficial se requiere RUC real, certificado digital y credenciales SOL/OSE/PSE.
+
+---
+
+##  Compilar
 
 ```powershell
 .\mvnw.cmd clean package -DskipTests
 ```
 
-O use:
+O:
 
 ```powershell
 .\compilar-todo.ps1
 ```
 
-## Errores corregidos respecto al proyecto recibido
+---
 
-- La clave JWT del servicio de autenticación no coincidía con la del Gateway.
-- Productos se almacenaban en una lista de memoria y nunca se guardaban en PostgreSQL.
-- Las tablas de los scripts SQL no coincidían con los nombres de las entidades.
-- El Gateway mezclaba rutas directas con Eureka y podía devolver servicio no disponible.
-- Ventas aceptaba el total enviado por el navegador y no descontaba stock.
-- La relación venta–detalle duplicaba la columna `venta_id`.
-- Cliente no guardaba tipo ni número de documento.
-- La impresión del frontend vaciaba los detalles antes de abrir el comprobante.
-- El `docker-compose` del backend intentaba construir una carpeta frontend inexistente.
+##  Variables de entorno recomendadas
+
+| Variable | Valor por defecto | Descripción |
+|:---|---|---|
+| `JWT_SECRET` | `MaranathaStoreClaveSuperSeguraJWT2026Maranatha` | Clave de firma JWT |
+| `DECOLECTA_API_KEY` | *(vacío)* | Clave para consulta DNI/RUC |
+| `CONSULTA_RUC_ENABLED` | `false` | Habilita consulta RUC en facturación |
+| `SPRING_DATASOURCE_PASSWORD` | `admin123` | Contraseña PostgreSQL |
+| `INTERNAL_SERVICE_TOKEN` | *(vacío)* | Token entre microservicios |
+
+---
+
+##  Mejoras respecto al proyecto original
+
+- Clave JWT unificada entre Auth y Gateway.
+- Productos persistidos en PostgreSQL (ya no en memoria).
+- Tablas SQL alineadas con nombres de entidades JPA.
+- Gateway sin rutas conflictivas con Eureka.
+- Ventas calculan total en servidor y descuentan stock real.
+- Relación venta–detalle sin columna duplicada.
+- Clientes guardan tipo y número de documento (DNI/RUC).
+- Docker-compose ya no intenta construir frontend inexistente.
+
+---
+
+##  Flujo de trabajo sugerido
+
+1. Trabaja en tu rama de feature.
+2. Sincroniza con `qa/integracion-backend` antes de hacer PR.
+3. Abre un Pull Request hacia `master` una vez revisado y probado.
+4. Tras el merge, despliega a producción con `docker compose up -d --build`.
