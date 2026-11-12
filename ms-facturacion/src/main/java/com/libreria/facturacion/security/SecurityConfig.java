@@ -56,6 +56,12 @@ public class SecurityConfig {
                                 "/v3/api-docs/**"
                         ).permitAll()
 
+                        // Spring reenvia a /error cuando un controller lanza
+                        // excepcion. Esa peticion interna no lleva el token,
+                        // asi que sin permitAll terminaba en 401 y el cliente
+                        // recibia un error en vez del mensaje real.
+                        .requestMatchers("/error").permitAll()
+
                         .requestMatchers(
                                 HttpMethod.GET,
                                 "/api/facturacion/ruc/**"

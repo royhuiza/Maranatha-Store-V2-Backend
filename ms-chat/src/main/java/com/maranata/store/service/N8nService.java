@@ -16,16 +16,19 @@ public class N8nService {
 
     private static final Logger log = LoggerFactory.getLogger(N8nService.class);
 
-    @Value("${services.n8n.url:http://maranatha-n8n:5678/webhook/maranata-chat}")
+    @Value("${services.n8n.url:http://maranatha-n8n:5678/webhook/maranatha-chat}")
     private String n8nWebhookUrl;
 
-    @Value("${services.whatsapp.url:http://host.docker.internal:8081/message/sendText/maranatha}")
-    private String whatsappWebhookUrl;
+    /** Numero opcional de destino para reenviar mensajes a WhatsApp (formato internacional). */
+    @Value("${integrations.evolution-api.destino:}")
+    private String whatsappDestino;
 
     private final RestTemplate restTemplate;
+    private final EvolutionApiClient evolution;
 
-    public N8nService(RestTemplateBuilder restTemplateBuilder) {
+    public N8nService(RestTemplateBuilder restTemplateBuilder, EvolutionApiClient evolution) {
         this.restTemplate = restTemplateBuilder.build();
+        this.evolution = evolution;
     }
 
     public ChatResponseDTO sendMessage(ChatRequestDTO request) {
@@ -54,14 +57,14 @@ public class N8nService {
             log.error("Error al reenviar mensaje a n8n: ", ex);
         }
 
+        if (whatsappDestino == null || whatsappDestino.isBlank()) {
+            log.info("Reenvio a WhatsApp omitido: no hay numero destino configurado");
+            return;
+        }
         try {
-            restTemplate.postForEntity(
-                    whatsappWebhookUrl,
-                    request,
-                    ChatResponseDTO.class
-            );
+            evolution.enviarTexto(whatsappDestino, request.getMessage());
             log.info("Mensaje reenviado a WhatsApp: {}", request.getMessage());
-        } catch (RestClientException ex) {
+        } catch (RuntimeException ex) {
             log.error("Error al reenviar mensaje a WhatsApp: ", ex);
         }
     }

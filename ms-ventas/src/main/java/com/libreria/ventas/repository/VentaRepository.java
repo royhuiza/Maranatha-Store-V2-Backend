@@ -15,6 +15,10 @@ public interface VentaRepository extends JpaRepository<Venta, Long>, JpaSpecific
     @EntityGraph(attributePaths = "detalles")
     Optional<Venta> findOneById(Long id);
 
+    // Carga "detalles" en la misma consulta: sin EntityGraph la coleccion
+    // queda lazy y Jackson falla al serializar la venta devuelta por
+    // anularVenta fuera de la transaccion (LazyInitializationException).
+    @EntityGraph(attributePaths = "detalles")
     @org.springframework.data.jpa.repository.Lock(jakarta.persistence.LockModeType.PESSIMISTIC_WRITE)
     @org.springframework.data.jpa.repository.Query("select v from Venta v where v.id = :id")
     Optional<Venta> findLockedById(@org.springframework.data.repository.query.Param("id") Long id);

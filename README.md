@@ -40,7 +40,7 @@ Eureka y Config Server quedan como módulos auxiliares, pero no son necesarios p
 La forma más sencilla es abrir PowerShell en esta carpeta y ejecutar:
 
 ```powershell
-docker compose up -d postgres
+docker compose up -d maranatha-postgres
 ```
 
 Esto crea automáticamente estas bases:
@@ -95,7 +95,45 @@ También puede abrir PowerShell como usuario normal y ejecutar:
 ## Opción B: ejecutar todo el backend con Docker
 
 ```powershell
-docker compose up --build
+docker compose up -d --build
+```
+
+Todo el stack queda bajo el proyecto de Docker **`maranatha-backend`** y comparte la red **`maranatha-net`**:
+
+| Servicio | Contenedor | Puerto |
+|---|---|---:|
+| API Gateway | `maranatha-gateway` | 8080 |
+| Autenticación | `maranatha-auth` | 8081 |
+| Productos | `maranatha-productos` | 8082 |
+| Clientes | `maranatha-clientes` | 8083 |
+| Ventas | `maranatha-ventas` | 8084 |
+| Facturación | `maranatha-facturacion` | 8085 (interno) |
+| WhatsApp (Evolution API) | `maranatha-whatsapp` | 8086 |
+| Chat | `maranatha-chat` | 8087 |
+| n8n | `maranatha-n8n` | 5678 |
+| PostgreSQL | `maranatha-postgres` | 5432 |
+| Redis | `maranatha-redis` | 6379 |
+
+Verifique que todo pertenece al mismo grupo:
+
+```powershell
+docker compose ps
+```
+
+### Endpoints de chat y QR
+
+`ms-chat` expone (también vía Gateway en `/api/v1/chat/...`, con token JWT):
+
+- `GET /api/v1/chat/whatsapp/qr` — consulta Evolution API y devuelve el QR en Base64.
+- `GET /api/v1/chat/logs` — bitácora reciente de la actividad del chatbot.
+
+La instancia de WhatsApp se registra sola al arrancar (`maranatha-whatsapp-init`, job idempotente).
+Para leer el QR:
+
+```powershell
+$token = (Invoke-RestMethod -Uri http://localhost:8080/auth/login -Method Post `
+  -ContentType "application/json" -Body '{"username":"admin","password":"admin123"}').token
+Invoke-RestMethod -Uri http://localhost:8080/api/v1/chat/whatsapp/qr -Headers @{ Authorization = "Bearer $token" }
 ```
 
 Para detener:
@@ -118,6 +156,7 @@ Abra <http://localhost:8080/swagger-ui.html>. En la parte superior podrá elegir
 - Productos
 - Clientes
 - Ventas
+- Chat
 
 Primero ejecute `POST /auth/login`, copie el token y luego pulse **Authorize** en los módulos protegidos. Pegue solamente el token JWT.
 

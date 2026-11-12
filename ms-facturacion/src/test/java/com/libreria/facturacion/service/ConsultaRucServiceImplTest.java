@@ -59,9 +59,16 @@ class ConsultaRucServiceImplTest {
         ConsultaRucServiceImpl service =
                 new ConsultaRucServiceImpl(true);
 
-        assertThrows(
-                UnsupportedOperationException.class,
+        // Sin ms-cliente configurado el servicio no puede consultar nada:
+        // debe fallar en vez de devolver datos inventados.
+        IllegalStateException error = assertThrows(
+                IllegalStateException.class,
                 () -> service.consultarPorRuc("20123456786")
+        );
+
+        assertEquals(
+                "No se ha configurado ms-cliente",
+                error.getMessage()
         );
     }
 }

@@ -46,6 +46,14 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                 String username = claims.getSubject();
                 String role = claims.get("role", String.class);
 
+                // El claim ya viene como "ROLE_ADMIN"/"ROLE_USER" y Spring
+                // Security 6 antepone ROLE_ en hasRole()/hasAnyRole(). Sin
+                // normalizar, la authority quedaria "ROLE_ROLE_ADMIN" y
+                // ninguna ruta con hasRole() pasaria nunca (401).
+                if (role != null && !role.startsWith("ROLE_")) {
+                    role = "ROLE_" + role;
+                }
+
                 if (username != null && !username.isBlank()
                         && role != null
                         && (role.equals("ROLE_ADMIN")
