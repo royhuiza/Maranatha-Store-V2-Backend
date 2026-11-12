@@ -15,6 +15,8 @@ public interface ProductoService {
 
     Producto obtenerProducto(Long id);
 
+    List<Producto> listarStockBajo();
+
     Producto crearProducto(Producto producto);
 
     Producto actualizarProducto(Long id, Producto cambios);

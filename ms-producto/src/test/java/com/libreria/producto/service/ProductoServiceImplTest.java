@@ -66,7 +66,7 @@ class ProductoServiceImplTest {
         existente.setId(1L);
         existente.setAfectacionIgv(TipoAfectacionIgv.GRAVADO);
 
-        when(repository.findById(1L))
+        when(repository.findByIdForUpdate(1L))
                 .thenReturn(Optional.of(existente));
 
         Producto cambios = crearDatosProducto();

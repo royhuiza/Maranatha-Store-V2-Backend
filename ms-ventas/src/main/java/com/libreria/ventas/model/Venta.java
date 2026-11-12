@@ -8,7 +8,11 @@ import java.util.ArrayList;
 import java.util.List;
 
 @Entity
-@Table(name = "ventas")
+// T68: índices para filtrar el historial por fecha y por serie/número de comprobante.
+@Table(name = "ventas", indexes = {
+        @Index(name = "idx_ventas_fecha", columnList = "fecha"),
+        @Index(name = "idx_ventas_serie_numero", columnList = "serie, numero")
+})
 public class Venta {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -43,10 +47,6 @@ public class Venta {
     @Column(nullable = false, length = 20)
     private EstadoVenta estado;
 
-    @OneToMany(mappedBy = "venta", cascade = CascadeType.ALL, orphanRemoval = true)
-    @OrderBy("id ASC")
-    private List<VentaDetalle> detalles = new ArrayList<>();
-
     @Column(name = "estado_pago", nullable = false, columnDefinition = "varchar(30) default 'PENDIENTE'")
     private String estadoPago = "PENDIENTE";
     public String getEstadoPago() { return estadoPago; }
@@ -60,6 +60,10 @@ public class Venta {
     private MetodoPago metodoPago;
     public MetodoPago getMetodoPago() { return metodoPago; }
     public void setMetodoPago(MetodoPago value) { metodoPago = value; }
+    @OneToMany(mappedBy = "venta", cascade = CascadeType.ALL, orphanRemoval = true)
+    @OrderBy("id ASC")
+    private List<VentaDetalle> detalles = new ArrayList<>();
+
     public Venta() {}
 
     public void agregarDetalle(VentaDetalle detalle) {
