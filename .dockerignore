@@ -7,3 +7,19 @@
 
 .env
 .env.*
+
+# Private local artifacts
+**/.env
+**/.env.*
+**/certificados
+**/*.p12
+**/*.pfx
+**/*.key
+**/archivos-fiscales
+**/backups
+**/logs
+**/*.bak
+**/target
+.git
+UBL-2.1.zip
+ubl-temporal

@@ -10,10 +10,10 @@ services:
     restart: unless-stopped
     environment:
       POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-admin123}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Configura POSTGRES_PASSWORD}
       POSTGRES_DB: postgres
     ports:
-      - "5432:5432"
+      - "127.0.0.1:5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
       - ./docker/init-multiple-dbs.sql:/docker-entrypoint-initdb.d/01-create-databases.sql:ro
@@ -33,7 +33,7 @@ services:
     container_name: maranatha-redis
     restart: unless-stopped
     ports:
-      - "6379:6379"
+      - "127.0.0.1:6379:6379"
     networks:
       maranatha-net:
         aliases:
@@ -68,8 +68,8 @@ services:
       SERVER_PORT: 8081
       SPRING_DATASOURCE_URL: jdbc:postgresql://maranatha-postgres:5432/db_auth
       SPRING_DATASOURCE_USERNAME: postgres
-      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD:-admin123}
-      JWT_SECRET: ${JWT_SECRET:-MaranathaStoreClaveSuperSeguraJWT2026Maranatha}
+      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD:?Configura POSTGRES_PASSWORD}
+      JWT_SECRET: ${JWT_SECRET:?Configura JWT_SECRET}
       EUREKA_ENABLED: "false"
     ports: ["8081:8081"]
     depends_on:
@@ -87,12 +87,13 @@ services:
       dockerfile: ms-producto/Dockerfile
     container_name: maranatha-productos
     environment:
+      INTERNAL_SERVICE_TOKEN: ${INTERNAL_SERVICE_TOKEN:-}
       SERVER_PORT: 8082
       VENTAS_SERVICE_URL: http://ms-ventas:8084
       SPRING_DATASOURCE_URL: jdbc:postgresql://maranatha-postgres:5432/db_producto
       SPRING_DATASOURCE_USERNAME: postgres
-      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD:-admin123}
-      JWT_SECRET: ${JWT_SECRET:-MaranathaStoreClaveSuperSeguraJWT2026Maranatha}
+      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD:?Configura POSTGRES_PASSWORD}
+      JWT_SECRET: ${JWT_SECRET:?Configura JWT_SECRET}
       EUREKA_ENABLED: "false"
     ports: ["8082:8082"]
     depends_on:
@@ -113,8 +114,8 @@ services:
       SERVER_PORT: 8083
       SPRING_DATASOURCE_URL: jdbc:postgresql://maranatha-postgres:5432/db_cliente
       SPRING_DATASOURCE_USERNAME: postgres
-      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD:-admin123}
-      JWT_SECRET: ${JWT_SECRET:-MaranathaStoreClaveSuperSeguraJWT2026Maranatha}
+      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD:?Configura POSTGRES_PASSWORD}
+      JWT_SECRET: ${JWT_SECRET:?Configura JWT_SECRET}
       # Clave de Decolecta (proveedor de DNI/RUC). Sin ella la consulta de
       # documentos responde 503 y la web no puede validar clientes.
       DECOLECTA_API_KEY: ${DECOLECTA_API_KEY:-}
@@ -135,14 +136,17 @@ services:
       dockerfile: ms-ventas/Dockerfile
     container_name: maranatha-ventas
     environment:
+      INTERNAL_SERVICE_TOKEN: ${INTERNAL_SERVICE_TOKEN:-}
       SERVER_PORT: 8084
       SPRING_DATASOURCE_URL: jdbc:postgresql://maranatha-postgres:5432/db_ventas
       SPRING_DATASOURCE_USERNAME: postgres
-      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD:-admin123}
+      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD:?Configura POSTGRES_PASSWORD}
       PRODUCTO_SERVICE_URL: http://ms-producto:8082
       CLIENTE_SERVICE_URL: http://ms-cliente:8083
-      JWT_SECRET: ${JWT_SECRET:-MaranathaStoreClaveSuperSeguraJWT2026Maranatha}
+      JWT_SECRET: ${JWT_SECRET:?Configura JWT_SECRET}
       EUREKA_ENABLED: "false"
+      FACTURACION_SERVICE_URL: http://ms-facturacion:8085
+      FACTURACION_INTERNAL_TOKEN: ${FACTURACION_INTERNAL_TOKEN:-}
     ports: ["8084:8084"]
     depends_on:
       maranatha-postgres:
@@ -162,13 +166,21 @@ services:
       context: .
       dockerfile: ms-facturacion/Dockerfile
     container_name: maranatha-facturacion
+    ports:
+      - "127.0.0.1:8085:8085"
     restart: unless-stopped
     environment:
       SERVER_PORT: 8085
-      JWT_SECRET: ${JWT_SECRET:-MaranathaStoreClaveSuperSeguraJWT2026Maranatha}
+      JWT_SECRET: ${JWT_SECRET:?Configura JWT_SECRET}
       EUREKA_ENABLED: "false"
       CONSULTA_RUC_ENABLED: "true"
       MS_CLIENTE_URL: http://ms-cliente:8083
+      SUNAT_BETA_ENABLED: ${SUNAT_BETA_ENABLED:-false}
+      SUNAT_CERT_RUTA: /certificados/maranatha-beta.p12
+      SUNAT_CERT_PASSWORD: ${SUNAT_CERT_PASSWORD:-}
+      SUNAT_XSD_RUTA: /xsd/ubl21/maindoc/UBL-Invoice-2.1.xsd
+      SUNAT_ARCHIVOS_DIRECTORIO: /archivos-fiscales
+      FACTURACION_INTERNAL_TOKEN: ${FACTURACION_INTERNAL_TOKEN:-}
     expose:
       - "8085"
     depends_on:
@@ -176,6 +188,10 @@ services:
         condition: service_started
     networks:
       - maranatha-net
+    volumes:
+      - ./certificados:/certificados:ro
+      - ./ms-facturacion/src/main/resources/xsd:/xsd:ro
+      - ./archivos-fiscales:/archivos-fiscales
 
   # ------------------------------------------------------------------
   # Chat (n8n + Evolution API / WhatsApp)
@@ -191,7 +207,7 @@ services:
       EUREKA_ENABLED: "false"
       N8N_URL: http://maranatha-n8n:5678/webhook/maranatha-chat
       EVOLUTION_API_URL: http://maranatha-whatsapp:8080
-      EVOLUTION_API_KEY: ${EVOLUTION_API_KEY:-maranatha_secret_key_2026}
+      EVOLUTION_API_KEY: ${EVOLUTION_API_KEY:?Configura EVOLUTION_API_KEY}
       EVOLUTION_API_INSTANCE: ${EVOLUTION_API_INSTANCE:-maranatha-store}
     extra_hosts:
       - "host.docker.internal:host-gateway"
@@ -233,7 +249,7 @@ services:
       - POSTGRES_PORT=5432
       - POSTGRES_DATABASE=postgres
       - POSTGRES_USER=postgres
-      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-admin123}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:?Configura POSTGRES_PASSWORD}
     entrypoint: ["/bin/sh", "/init/init-n8n-workflow.sh", "--start"]
     volumes:
       - ./docker/init-n8n-workflow.sh:/init/init-n8n-workflow.sh:ro
@@ -256,14 +272,14 @@ services:
     environment:
       - SERVER_URL=http://localhost:8086
       - DOCKER_ENV=true
-      - API_KEY=${EVOLUTION_API_KEY:-maranatha_secret_key_2026}
-      - AUTHENTICATION_API_KEY=${EVOLUTION_API_KEY:-maranatha_secret_key_2026}
+      - API_KEY=${EVOLUTION_API_KEY:?Configura EVOLUTION_API_KEY}
+      - AUTHENTICATION_API_KEY=${EVOLUTION_API_KEY:?Configura EVOLUTION_API_KEY}
       - DATABASE_ENABLED=true
       - DATABASE_PROVIDER=postgresql
       # Evolution API usa un schema propio ("evolution") dentro de la base
       # postgres. Prisma crea el schema solo en el primer arranque, asi que
       # este servicio no depende de que el volumen de datos ya exista.
-      - DATABASE_CONNECTION_URI=postgresql://postgres:${POSTGRES_PASSWORD:-admin123}@maranatha-postgres:5432/postgres?schema=evolution
+      - DATABASE_CONNECTION_URI=postgresql://postgres:${POSTGRES_PASSWORD:?Configura POSTGRES_PASSWORD}@maranatha-postgres:5432/postgres?schema=evolution
       - DATABASE_CLIENT_NAME=evolution_db
       - CACHE_REDIS_ENABLED=true
       - CACHE_REDIS_URI=redis://maranatha-redis:6379/6
@@ -292,7 +308,7 @@ services:
     entrypoint: ["/bin/sh", "/init/init-whatsapp-instance.sh"]
     environment:
       EVOLUTION_API_URL: http://maranatha-whatsapp:8080
-      EVOLUTION_API_KEY: ${EVOLUTION_API_KEY:-maranatha_secret_key_2026}
+      EVOLUTION_API_KEY: ${EVOLUTION_API_KEY:?Configura EVOLUTION_API_KEY}
       EVOLUTION_API_INSTANCE: ${EVOLUTION_API_INSTANCE:-maranatha-store}
     volumes:
       - ./docker/init-whatsapp-instance.sh:/init/init-whatsapp-instance.sh:ro
@@ -319,7 +335,7 @@ services:
       PRODUCTO_SERVICE_URL: http://ms-producto:8082
       CLIENTE_SERVICE_URL: http://ms-cliente:8083
       VENTAS_SERVICE_URL: http://ms-ventas:8084
-      JWT_SECRET: ${JWT_SECRET:-MaranathaStoreClaveSuperSeguraJWT2026Maranatha}
+      JWT_SECRET: ${JWT_SECRET:?Configura JWT_SECRET}
       EUREKA_ENABLED: "false"
     ports: ["8080:8080"]
     depends_on:
