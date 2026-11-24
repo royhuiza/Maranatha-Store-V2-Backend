@@ -28,7 +28,17 @@ public class Usuario implements UserDetails {
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 20)
-    private Rol rol = Rol.USER;
+    private Rol rol = Rol.VENDEDOR;
+
+    @Column(nullable = false, columnDefinition = "boolean default true")
+    private boolean activo = true;
+    public boolean isActivo() { return activo; }
+    public void setActivo(boolean activo) { this.activo = activo; }
+
+    @Column(nullable = false, columnDefinition = "bigint default 0")
+    private long versionSesion = 0;
+    public long getVersionSesion() { return versionSesion; }
+    public void invalidarSesiones() { versionSesion++; }
 
     public Usuario() {}
 
@@ -45,11 +55,11 @@ public class Usuario implements UserDetails {
 
     @Override
     public Collection<? extends GrantedAuthority> getAuthorities() {
-        Rol rolSeguro = rol == null ? Rol.USER : rol;
+        Rol rolSeguro = rol == null ? Rol.VENDEDOR : rol;
         return List.of(() -> "ROLE_" + rolSeguro.name());
     }
     @Override public boolean isAccountNonExpired() { return true; }
     @Override public boolean isAccountNonLocked() { return true; }
     @Override public boolean isCredentialsNonExpired() { return true; }
-    @Override public boolean isEnabled() { return true; }
+    @Override public boolean isEnabled() { return activo; }
 }

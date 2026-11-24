@@ -8,6 +8,7 @@ public interface AuthService {
     Usuario registrarUsuario(UsuarioDTO usuarioDTO);
     List<Usuario> listarUsuarios();
     Usuario obtenerUsuario(Long id);
-    Usuario actualizarUsuario(Long id, UsuarioDTO usuarioDTO);
+    Usuario actualizarUsuario(Long id, com.libreria.auth.dto.ActualizarUsuarioDTO dto);
+    Usuario reactivarUsuario(Long id);
     void eliminarUsuario(Long id);
 }

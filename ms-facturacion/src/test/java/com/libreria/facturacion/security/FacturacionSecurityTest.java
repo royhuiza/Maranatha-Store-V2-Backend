@@ -60,7 +60,7 @@ class FacturacionSecurityTest {
 
         String token = Jwts.builder()
                 .setSubject("usuario.prueba")
-                .claim("role", "ROLE_USER")
+                .claim("role", "ROLE_VENDEDOR")
                 .setIssuedAt(new Date())
                 .setExpiration(
                         new Date(System.currentTimeMillis() + 60000)
@@ -106,7 +106,7 @@ class FacturacionSecurityTest {
 
         String token = Jwts.builder()
                 .setSubject("usuario.prueba")
-                .claim("role", "ROLE_USER")
+                .claim("role", "ROLE_VENDEDOR")
                 .setIssuedAt(new Date())
                 .setExpiration(
                         new Date(System.currentTimeMillis() + 60000)

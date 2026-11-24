@@ -1,5 +1,5 @@
 $root = $PSScriptRoot
-$modules = @('ms-auth','ms-producto','ms-cliente','ms-ventas','ms-chat','api-gateway')
+$modules = @('ms-auth','ms-producto','ms-cliente','ms-ventas','ms-facturacion','api-gateway')
 foreach ($module in $modules) {
     $command = "Set-Location '$root'; .\mvnw.cmd -pl $module spring-boot:run"
     Start-Process powershell -ArgumentList '-NoExit','-Command',$command

@@ -20,7 +20,7 @@ class RoleResponseTest {
    assertEquals("ROLE_ADMIN",jwt.parse(response.token()).get("role",String.class));
  }
  @Test void sessionReportsActualAuthorityValue(){
-   var authenticated=new UsernamePasswordAuthenticationToken("vendedor-prueba",null,List.of((GrantedAuthority)()->"ROLE_USER"));
-   assertEquals("USER",new SessionController().me(authenticated).rol());
+   var authenticated=new UsernamePasswordAuthenticationToken("vendedor-prueba",null,List.of((GrantedAuthority)()->"ROLE_VENDEDOR"));
+   assertEquals("VENDEDOR",new SessionController().me(authenticated).rol());
  }
 }

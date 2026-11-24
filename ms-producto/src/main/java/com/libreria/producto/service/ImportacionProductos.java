@@ -1,6 +1,10 @@
 package com.libreria.producto.service;
 
 import com.libreria.producto.model.Producto;
+import com.libreria.producto.model.AjusteInventario;
+import com.libreria.producto.dto.AjusteStockRequest;
+import com.libreria.producto.repository.AjusteInventarioRepository;
+import org.springframework.beans.factory.annotation.Autowired;
 import com.libreria.producto.repository.ProductoRepository;
 import jakarta.validation.Validator;
 import org.apache.poi.ss.usermodel.*;
@@ -22,6 +26,7 @@ public class ImportacionProductos {
     private final ProductoRepository productos;
     private final JdbcTemplate jdbc;
     private final Validator validator;
+    @Autowired private AjusteInventarioRepository ajustes;
 
     public ImportacionProductos(ProductoRepository productos, JdbcTemplate jdbc, Validator validator) {
         this.productos = productos;
@@ -35,6 +40,12 @@ public class ImportacionProductos {
 
         // Serializa importaciones para impedir duplicados entre dos cargas del mismo archivo.
         jdbc.query("select pg_advisory_xact_lock(83910517)", rs -> { });
+        jdbc.execute("create table if not exists importaciones_mercancia (huella varchar(64) primary key)");
+        String huella;
+        try { huella = HexFormat.of().formatHex(java.security.MessageDigest.getInstance("SHA-256").digest(archivo.getBytes())); }
+        catch (Exception ex) { throw error(0, "no se pudo identificar el archivo"); }
+        if (jdbc.update("insert into importaciones_mercancia values (?) on conflict do nothing", huella) == 0)
+            throw error(0, "este archivo ya fue importado");
         Map<String, List<Long>> porNombre = new HashMap<>();
         Set<Long> idsExistentes = new HashSet<>();
         // Carga solo las referencias para comparar después contra cada fila bloqueada.
@@ -74,14 +85,15 @@ public class ImportacionProductos {
             if (datos.getId() == null && !clave(actual.getNombre()).equals(clave(datos.getNombre()))) {
                 throw error(fila.numero(), "el nombre del artículo cambió durante la importación. Indica su ID");
             }
-            if (mismosDatos(actual, datos)) continue;
+            if (datos.getStock() == 0) continue;
+            if (Boolean.FALSE.equals(actual.getActivo())) throw error(fila.numero(), "reactiva el producto antes de reponerlo");
+            int anterior = actual.getStock();
+            long total = (long) anterior + datos.getStock();
+            if (total > Integer.MAX_VALUE) throw error(fila.numero(), "stock máximo excedido");
 
             actualizados++;
-            actual.setNombre(datos.getNombre());
-            actual.setDescripcion(datos.getDescripcion());
-            actual.setPrecio(datos.getPrecio());
-            actual.setStock(datos.getStock());
-            if (datos.getActivo() != null) actual.setActivo(datos.getActivo());
+            actual.setStock((int) total);
+            ajustes.save(new AjusteInventario(actual.getId(), AjusteStockRequest.Tipo.REPONER, datos.getStock(), anterior, (int) total, "Ingreso mediante Excel"));
         }
         if (!nuevos.isEmpty()) {
             jdbc.batchUpdate("""
@@ -155,7 +167,7 @@ public class ImportacionProductos {
                     case "nombre", "producto", "product" -> "nombre";
                     case "descripción", "descripcion", "desc" -> "descripcion";
                     case "precio", "price" -> "precio";
-                    case "stock", "cantidad", "qty" -> "stock";
+                    case "stock", "cantidad", "cantidad ingresada", "qty" -> "stock";
                     case "activo", "estado", "enabled" -> "activo";
                     default -> null;
                 };

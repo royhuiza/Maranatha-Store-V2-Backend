@@ -17,6 +17,7 @@ public class AccessFilter extends OncePerRequestFilter {
  @Override protected void doFilterInternal(HttpServletRequest req,HttpServletResponse res,FilterChain chain) throws ServletException,IOException {
    String p=req.getRequestURI(), method=req.getMethod();
    if(!p.startsWith("/ventas")){chain.doFilter(req,res);return;}
+   if(method.equals("GET") && p.matches("/ventas/comprobante-publico/[a-f0-9]{64}")){chain.doFilter(req,res);return;}
    String service=req.getHeader("X-Internal-Token");
    boolean internalPath = method.equals("GET") && p.matches("/ventas/producto/\\d+/asociado");
    if(internalPath && service!=null){
@@ -30,7 +31,7 @@ public class AccessFilter extends OncePerRequestFilter {
      if(header==null || !header.startsWith("Bearer "))throw new IllegalArgumentException();
      var claims=Jwts.parserBuilder().setSigningKey(key).build().parseClaimsJws(header.substring(7)).getBody();
      role=claims.get("role",String.class);
-     if(claims.getSubject()==null || claims.getExpiration()==null || !("ROLE_ADMIN".equals(role)||"ROLE_USER".equals(role)))throw new IllegalArgumentException();
+     if(claims.getSubject()==null || claims.getExpiration()==null || !("ROLE_ADMIN".equals(role)||"ROLE_VENDEDOR".equals(role)))throw new IllegalArgumentException();
    }catch(Exception e){deny(res,401,"Token requerido o inválido");return;}
    boolean adminOnly=p.endsWith("/anular") || method.equals("DELETE");
    if(adminOnly && !"ROLE_ADMIN".equals(role)){deny(res,403,"Operación reservada al administrador");return;}

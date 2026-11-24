@@ -11,7 +11,7 @@ public class JwtAuthenticationToken extends AbstractAuthenticationToken {
     private final String principal;  // Usuario autenticado (username)
 
     public JwtAuthenticationToken(String principal) {
-        super(Collections.singletonList(new SimpleGrantedAuthority("ROLE_USER")));  // Establecemos un rol por defecto
+        super(Collections.singletonList(new SimpleGrantedAuthority("ROLE_VENDEDOR")));  // Establecemos un rol por defecto
         this.principal = principal;
         setAuthenticated(true);  // Token autenticado
     }

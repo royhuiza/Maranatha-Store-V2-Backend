@@ -34,11 +34,14 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             try {
                 Claims claims = jwtService.parse(header.substring(7));
                 var user = users.findOptionalByUsernameIgnoreCase(claims.getSubject()).orElseThrow();
+                if (!user.getId().equals(claims.get("uid", Long.class)) || !Long.valueOf(user.getVersionSesion()).equals(claims.get("sv", Long.class))) throw new IllegalStateException("Sesión vencida");
+                if (!user.isActivo()) throw new IllegalStateException("Cuenta inactiva");
                 String role = "ROLE_" + user.getRol().name();
+                if (!role.equals(claims.get("role", String.class)) || !user.getUsername().equals(claims.getSubject())) throw new IllegalStateException("Sesión modificada");
                 UsernamePasswordAuthenticationToken authentication =
                         new UsernamePasswordAuthenticationToken(
                                 claims.getSubject(), null,
-                                List.of(new SimpleGrantedAuthority(role == null ? "ROLE_USER" : role))
+                                List.of(new SimpleGrantedAuthority(role == null ? "ROLE_VENDEDOR" : role))
                         );
                 SecurityContextHolder.getContext().setAuthentication(authentication);
             } catch (Exception ignored) {

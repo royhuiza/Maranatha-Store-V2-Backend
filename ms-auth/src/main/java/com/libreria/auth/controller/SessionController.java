@@ -12,7 +12,7 @@ public class SessionController {
     public Session me(Authentication authentication) {
         String rol = authentication.getAuthorities().stream().map(org.springframework.security.core.GrantedAuthority::getAuthority)
                 .filter(value -> value.startsWith("ROLE_"))
-                .findFirst().orElse("ROLE_USER").substring(5);
+                .findFirst().orElse("ROLE_VENDEDOR").substring(5);
         return new Session(authentication.getName(), rol);
     }
 }

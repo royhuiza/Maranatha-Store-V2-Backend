@@ -20,6 +20,6 @@ public class UsuarioDetailsService implements org.springframework.security.core.
         if (usuario == null) {
             throw new UsernameNotFoundException("Usuario no encontrado");
         }
-        return new User(usuario.getUsername(), usuario.getPassword(), usuario.getAuthorities());
+        return new User(usuario.getUsername(), usuario.getPassword(), usuario.isActivo(), true, true, true, usuario.getAuthorities());
     }
 }

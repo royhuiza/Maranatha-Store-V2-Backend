@@ -15,7 +15,7 @@ import java.util.stream.Collectors;
 
 @RestControllerAdvice
 public class ApiExceptionHandler {
-    @ExceptionHandler(BadCredentialsException.class)
+    @ExceptionHandler({BadCredentialsException.class, org.springframework.security.authentication.DisabledException.class})
     ResponseEntity<Map<String, Object>> badCredentials() {
         return response(HttpStatus.UNAUTHORIZED, "Usuario o contraseña incorrectos");
     }
