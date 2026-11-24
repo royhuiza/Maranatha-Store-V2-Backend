@@ -28,6 +28,8 @@ import java.util.*;
 public class VentaServiceImpl implements VentaService {
 
     private final VentaRepository ventaRepository;
+    @org.springframework.beans.factory.annotation.Autowired
+    private org.springframework.jdbc.core.JdbcTemplate yapeDb;
     private final ClienteClient clienteClient;
     private final ProductoClient productoClient;
     private final ObjectMapper objectMapper;
@@ -59,9 +61,9 @@ public class VentaServiceImpl implements VentaService {
 
     // Constructor conservado para las pruebas de idempotencia existentes.
     public VentaServiceImpl(VentaRepository ventaRepository, ClienteClient clienteClient,
-            ProductoClient productoClient, ObjectMapper objectMapper,
-            VentaOperacionService ventaOperacionService, VentaRequestHashService ventaRequestHashService,
-            VentaPersistenciaService ventaPersistenciaService) {
+                            ProductoClient productoClient, ObjectMapper objectMapper,
+                            VentaOperacionService ventaOperacionService, VentaRequestHashService ventaRequestHashService,
+                            VentaPersistenciaService ventaPersistenciaService) {
         this(ventaRepository, clienteClient, productoClient, objectMapper,
                 ventaOperacionService, ventaRequestHashService, ventaPersistenciaService, null);
     }
@@ -168,6 +170,10 @@ public class VentaServiceImpl implements VentaService {
     public Venta crearVenta(CrearVentaRequest request) {
 
         String clave = request.getIdempotencyKey();
+        boolean yape = request.getMetodoPago() == MetodoPago.YAPE;
+        if (yape ? !clave.matches("YAPE-[a-f0-9]{64}") : clave.startsWith("YAPE-")) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Clave de pago Yape inválida");
+        }
 
         String hash = ventaRequestHashService.calcular(request);
 
@@ -205,6 +211,17 @@ public class VentaServiceImpl implements VentaService {
                     cantidades,
                     productos
             );
+
+            if (yape) {
+                List<BigDecimal> montos = yapeDb.queryForList(
+                        "SELECT monto FROM yape_evento WHERE id=? AND fecha >= ? AND fecha <= ?",
+                        BigDecimal.class, clave.substring(5), System.currentTimeMillis()-600000,
+                        System.currentTimeMillis()+300000);
+                if (montos.size() != 1 || montos.get(0).compareTo(venta.getTotal()) != 0) {
+                    throw new ResponseStatusException(HttpStatus.CONFLICT, "Pago Yape inexistente, vencido o importe distinto");
+                }
+                venta.setEstadoPago("DETECTADO");
+            }
 
             for (Map.Entry<Long, Integer> entry :
                     cantidades.entrySet()) {

@@ -18,6 +18,7 @@ public class AccessFilter extends OncePerRequestFilter {
    String p=req.getRequestURI(), method=req.getMethod();
    if(!p.startsWith("/ventas")){chain.doFilter(req,res);return;}
    if(method.equals("GET") && p.matches("/ventas/comprobante-publico/[a-f0-9]{64}")){chain.doFilter(req,res);return;}
+   if(method.equals("POST") && p.equals("/ventas/yape/eventos")){chain.doFilter(req,res);return;}
    String service=req.getHeader("X-Internal-Token");
    boolean internalPath = method.equals("GET") && p.matches("/ventas/producto/\\d+/asociado");
    if(internalPath && service!=null){
@@ -33,7 +34,7 @@ public class AccessFilter extends OncePerRequestFilter {
      role=claims.get("role",String.class);
      if(claims.getSubject()==null || claims.getExpiration()==null || !("ROLE_ADMIN".equals(role)||"ROLE_VENDEDOR".equals(role)))throw new IllegalArgumentException();
    }catch(Exception e){deny(res,401,"Token requerido o inválido");return;}
-   boolean adminOnly=p.endsWith("/anular") || method.equals("DELETE");
+   boolean adminOnly=p.startsWith("/ventas/yape/dispositivo") || p.endsWith("/anular") || method.equals("DELETE");
    if(adminOnly && !"ROLE_ADMIN".equals(role)){deny(res,403,"Operación reservada al administrador");return;}
    chain.doFilter(req,res);
  }

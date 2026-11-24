@@ -38,6 +38,7 @@ public class JwtAuthFilter implements GlobalFilter, Ordered {
 
         if (exchange.getRequest().getMethod() == HttpMethod.OPTIONS
                 || path.equals("/")
+                || (exchange.getRequest().getMethod() == HttpMethod.POST && path.equals("/ventas/yape/eventos"))
                 || (exchange.getRequest().getMethod() == HttpMethod.GET && path.matches("/ventas/comprobante-publico/[a-f0-9]{64}"))
                 || PUBLIC_PREFIXES.stream().anyMatch(path::startsWith)) {
             return chain.filter(exchange);
