@@ -103,8 +103,17 @@ public class Venta {
     public void setFechaZona(String zone) { fechaZona=zone; }
     public java.time.OffsetDateTime getFecha() { return PeruTime.fromStored(fecha,fechaZona); }
     public void setFecha(LocalDateTime fecha) { this.fecha = fecha; }
-    public BigDecimal getBaseImponible() { return total == null ? BigDecimal.ZERO : total.divide(new BigDecimal("1.18"), 2, java.math.RoundingMode.HALF_UP); }
-    public BigDecimal getIgv() { return total == null ? BigDecimal.ZERO : total.subtract(getBaseImponible()); }
+    public BigDecimal getBaseImponible() { return total == null ? BigDecimal.ZERO : total.subtract(getIgv()); }
+    public BigDecimal getIgv() {
+        if (total == null) return BigDecimal.ZERO;
+        // Historical sales without classification retain the previous estimate.
+        if (detalles.isEmpty() || detalles.stream().anyMatch(d -> d.getAfectacionIgv() == null)) {
+            return total.subtract(total.divide(new BigDecimal("1.18"), 2, java.math.RoundingMode.HALF_UP));
+        }
+        return detalles.stream().filter(d -> "GRAVADO".equals(d.getAfectacionIgv()))
+                .map(d -> d.getSubtotal().subtract(d.getSubtotal().divide(new BigDecimal("1.18"), 2, java.math.RoundingMode.HALF_UP)))
+                .reduce(BigDecimal.ZERO.setScale(2), BigDecimal::add);
+    }
     public BigDecimal getTotal() { return total; }
     public void setTotal(BigDecimal total) { this.total = total; }
     public TipoComprobante getTipoComprobante() { return tipoComprobante; }

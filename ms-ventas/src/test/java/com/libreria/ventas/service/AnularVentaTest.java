@@ -30,7 +30,7 @@ class AnularVentaTest {
         when(repo.findLockedById(1L)).thenReturn(Optional.of(venta));
         when(repo.save(any(Venta.class))).thenAnswer(i -> i.getArgument(0));
 
-        var resultado = new VentaServiceImpl(repo, null, productos, new ObjectMapper(), null)
+        var resultado = new VentaServiceImpl(repo, null, productos, new ObjectMapper(), null, null, null, null)
                 .anularVenta(1L);
 
         assertEquals(EstadoVenta.ANULADA, resultado.getEstado());
@@ -48,7 +48,7 @@ class AnularVentaTest {
 
         when(repo.findLockedById(1L)).thenReturn(Optional.of(venta));
 
-        var resultado = new VentaServiceImpl(repo, null, productos, new ObjectMapper(), null)
+        var resultado = new VentaServiceImpl(repo, null, productos, new ObjectMapper(), null, null, null, null)
                 .anularVenta(1L);
 
         assertEquals(EstadoVenta.ANULADA, resultado.getEstado());
