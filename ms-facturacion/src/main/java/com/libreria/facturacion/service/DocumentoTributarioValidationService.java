@@ -7,44 +7,113 @@ import org.springframework.stereotype.Service;
 @Service
 public class DocumentoTributarioValidationService {
 
+
+
     public void validarFactura(FacturaPruebaRequest factura) {
 
         if (factura == null) {
             throw new IllegalArgumentException(
-                    "Los datos de la factura son obligatorios"
+                    "Los datos del comprobante son obligatorios"
             );
         }
 
-        if (!"01".equals(factura.tipoComprobante())) {
+        String tipo = factura.tipoComprobante();
+
+        if (!"01".equals(tipo) && !"03".equals(tipo)) {
             throw new IllegalArgumentException(
-                    "Este validador solo admite facturas tipo 01"
+                    "Solo se admiten facturas (01) y boletas (03)"
             );
         }
 
         if (!esRucValido(factura.rucEmisor())) {
             throw new IllegalArgumentException(
-                    "El RUC del emisor no tiene un formato valido"
-            );
-        }
-
-        if (!"6".equals(factura.tipoDocumentoCliente())) {
-            throw new IllegalArgumentException(
-                    "La factura requiere un cliente identificado con RUC"
-            );
-        }
-
-        if (!esRucValido(factura.rucCliente())) {
-            throw new IllegalArgumentException(
-                    "El RUC del cliente no tiene un formato valido"
+                    "El RUC del emisor no es válido"
             );
         }
 
         if (factura.fechaEmision() == null) {
             throw new IllegalArgumentException(
-                    "La fecha de emision es obligatoria"
+                    "La fecha de emisión es obligatoria"
+            );
+        }
+
+        if (factura.serie() == null ||
+                factura.numero() == null ||
+                factura.serie().isBlank() ||
+                factura.numero().isBlank()) {
+
+            throw new IllegalArgumentException(
+                    "La serie y número son obligatorios"
+            );
+        }
+
+        if ("01".equals(tipo)) {
+
+            if (!factura.serie().startsWith("F")) {
+                throw new IllegalArgumentException(
+                        "La serie de factura debe comenzar con F"
+                );
+            }
+
+            if (!"6".equals(factura.tipoDocumentoCliente())) {
+                throw new IllegalArgumentException(
+                        "La factura requiere cliente con RUC"
+                );
+            }
+
+            if (!esRucValido(factura.rucCliente())) {
+                throw new IllegalArgumentException(
+                        "El RUC del cliente no es válido"
+                );
+            }
+
+        } else {
+
+            if (!factura.serie().startsWith("B")) {
+                throw new IllegalArgumentException(
+                        "La serie de boleta debe comenzar con B"
+                );
+            }
+
+            String tipoDocumento =
+                    factura.tipoDocumentoCliente();
+
+            if (tipoDocumento == null ||
+                    !tipoDocumento.matches("0|1|4|6|7")) {
+
+                throw new IllegalArgumentException(
+                        "Tipo de documento del cliente no admitido"
+                );
+            }
+
+            if ("1".equals(tipoDocumento) &&
+                    (factura.rucCliente() == null ||
+                            !factura.rucCliente().matches("\\d{8}"))) {
+
+                throw new IllegalArgumentException(
+                        "El DNI debe contener 8 dígitos"
+                );
+            }
+
+            if ("6".equals(tipoDocumento) &&
+                    !esRucValido(factura.rucCliente())) {
+
+                throw new IllegalArgumentException(
+                        "El RUC del cliente no es válido"
+                );
+            }
+        }
+
+        if (factura.detalles() == null ||
+                factura.detalles().isEmpty()) {
+
+            throw new IllegalArgumentException(
+                    "El comprobante debe contener productos"
             );
         }
     }
+
+
 
 
     private boolean esRucValido(String ruc) {
