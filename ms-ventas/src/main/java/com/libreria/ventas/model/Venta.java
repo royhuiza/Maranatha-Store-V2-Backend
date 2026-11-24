@@ -60,6 +60,23 @@ public class Venta {
     private MetodoPago metodoPago;
     public MetodoPago getMetodoPago() { return metodoPago; }
     public void setMetodoPago(MetodoPago value) { metodoPago = value; }
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "estado_sunat", length = 30)
+    private EstadoSunat estadoSunat;
+
+    @Column(name = "idempotency_key", length = 100, unique = true)
+    private String idempotencyKey;
+
+    @Column(name = "codigo_respuesta_sunat", length = 30)
+    private String codigoRespuestaSunat;
+
+    @Column(name = "mensaje_respuesta_sunat", columnDefinition = "TEXT")
+    private String mensajeRespuestaSunat;
+
+    @Column(name = "fecha_respuesta_sunat")
+    private LocalDateTime fechaRespuestaSunat;
+
     @OneToMany(mappedBy = "venta", cascade = CascadeType.ALL, orphanRemoval = true)
     @OrderBy("id ASC")
     private List<VentaDetalle> detalles = new ArrayList<>();
@@ -102,5 +119,44 @@ public class Venta {
     public void setDetalles(List<VentaDetalle> detalles) {
         this.detalles.clear();
         if (detalles != null) detalles.forEach(this::agregarDetalle);
+    }
+    public EstadoSunat getEstadoSunat() {
+        return estadoSunat;
+    }
+
+    public void setEstadoSunat(EstadoSunat estadoSunat) {
+        this.estadoSunat = estadoSunat;
+    }
+
+    public String getIdempotencyKey() {
+        return idempotencyKey;
+    }
+
+    public void setIdempotencyKey(String idempotencyKey) {
+        this.idempotencyKey = idempotencyKey;
+    }
+
+    public String getCodigoRespuestaSunat() {
+        return codigoRespuestaSunat;
+    }
+
+    public void setCodigoRespuestaSunat(String codigoRespuestaSunat) {
+        this.codigoRespuestaSunat = codigoRespuestaSunat;
+    }
+
+    public String getMensajeRespuestaSunat() {
+        return mensajeRespuestaSunat;
+    }
+
+    public void setMensajeRespuestaSunat(String mensajeRespuestaSunat) {
+        this.mensajeRespuestaSunat = mensajeRespuestaSunat;
+    }
+
+    public LocalDateTime getFechaRespuestaSunat() {
+        return fechaRespuestaSunat;
+    }
+
+    public void setFechaRespuestaSunat(LocalDateTime fechaRespuestaSunat) {
+        this.fechaRespuestaSunat = fechaRespuestaSunat;
     }
 }

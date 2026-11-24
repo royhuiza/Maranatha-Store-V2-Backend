@@ -21,6 +21,9 @@ public class VentaDetalle {
     @JoinColumn(name = "venta_id", nullable = false)
     private Venta venta;
 
+    @Column(name = "afectacion_igv", length = 30)
+    private String afectacionIgv;
+
     @Column(name = "producto_id", nullable = false)
     private Long productoId;
 
@@ -51,4 +54,12 @@ public class VentaDetalle {
     public void setPrecioUnitario(BigDecimal precioUnitario) { this.precioUnitario = precioUnitario; }
     public BigDecimal getSubtotal() { return subtotal; }
     public void setSubtotal(BigDecimal subtotal) { this.subtotal = subtotal; }
+
+    public String getAfectacionIgv() {
+        return afectacionIgv;
+    }
+
+    public void setAfectacionIgv(String afectacionIgv) {
+        this.afectacionIgv = afectacionIgv;
+    }
 }
