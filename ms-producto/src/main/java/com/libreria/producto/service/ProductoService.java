@@ -13,6 +13,8 @@ public interface ProductoService {
 
     List<Producto> listar(String consulta);
 
+    List<Producto> listarStockBajo();
+
     Producto obtenerProducto(Long id);
 
     Producto crearProducto(Producto producto);

@@ -42,7 +42,13 @@ public class ProductoController {
         return service.listar(consulta);
     }
 
-    @GetMapping("/{id}")
+    @GetMapping("/stock-bajo")
+    @Operation(summary = "Listar productos activos con stock bajo o agotado")
+    public List<Producto> stockBajo() {
+        return service.listarStockBajo();
+    }
+
+    @GetMapping("/{id:[0-9]+}")
     @Operation(summary = "Buscar producto por ID")
     public Producto obtener(@PathVariable Long id) { return service.obtenerProducto(id); }
 

@@ -13,6 +13,8 @@ import java.util.Optional;
 public interface ProductoRepository extends JpaRepository<Producto, Long> {
     List<Producto> findByNombreContainingIgnoreCaseOrDescripcionContainingIgnoreCase(String nombre, String descripcion);
 
+    List<Producto> findByActivoTrueAndStockLessThanEqualOrderByStockAsc(int stock);
+
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("select p from Producto p where p.id = :id")
     Optional<Producto> findByIdForUpdate(@Param("id") Long id);

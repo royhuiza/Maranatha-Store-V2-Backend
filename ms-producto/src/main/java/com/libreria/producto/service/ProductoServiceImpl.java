@@ -55,6 +55,12 @@ public class ProductoServiceImpl implements ProductoService {
 
     @Override
     @Transactional(readOnly = true)
+    public List<Producto> listarStockBajo() {
+        return repository.findByActivoTrueAndStockLessThanEqualOrderByStockAsc(10);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
     public Producto obtenerProducto(Long id) {
         return repository.findById(id)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Producto no encontrado"));
