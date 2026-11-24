@@ -48,10 +48,12 @@ public class ImportacionProductos {
             throw error(0, "este archivo ya fue importado");
         Map<String, List<Long>> porNombre = new HashMap<>();
         Set<Long> idsExistentes = new HashSet<>();
+        Map<Long, String> nombrePorId = new HashMap<>();
         // Carga solo las referencias para comparar después contra cada fila bloqueada.
         jdbc.query("select id, nombre from productos", resultado -> {
             long id = resultado.getLong("id");
             idsExistentes.add(id);
+            nombrePorId.put(id, clave(resultado.getString("nombre")));
             porNombre.computeIfAbsent(clave(resultado.getString("nombre")), k -> new ArrayList<>()).add(id);
         });
 
@@ -63,6 +65,12 @@ public class ImportacionProductos {
             Long id = producto.getId();
             String nombre = clave(producto.getNombre());
             if (id != null && !idsExistentes.contains(id)) throw error(fila.numero(), "el ID " + id + " no existe");
+            final Long idFila = id;
+            // T06: renombrar por ID a un nombre que ya usa otro artículo genera duplicados.
+            if (id != null && !nombre.equals(nombrePorId.get(id))
+                    && porNombre.getOrDefault(nombre, List.of()).stream().anyMatch(otro -> !otro.equals(idFila))) {
+                throw error(fila.numero(), "ya existe otro artículo llamado \"" + producto.getNombre().strip() + "\"");
+            }
             if (id == null) {
                 var coincidencias = porNombre.getOrDefault(nombre, List.of());
                 if (coincidencias.size() > 1) throw error(fila.numero(), "hay varios artículos con este nombre. Indica el ID");

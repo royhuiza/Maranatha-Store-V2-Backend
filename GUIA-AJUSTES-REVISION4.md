@@ -10,8 +10,7 @@ Revisión del 2 de noviembre de 2026. Los cambios están guardados en los proyec
 - La búsqueda sin resultados tiene texto y fondo con contraste en ambos temas.
 - El carrito muestra la cantidad como texto, sin flechas ni edición. La cantidad se elige antes de agregar; para reemplazar una cantidad, quitar y agregar de nuevo.
 - Los cuadros de ventas, descarga y stock se abren en la capa superior del navegador, centrados en la ventana. El fondo no se desplaza mientras están abiertos.
-- Se guarda el método de pago previsto: Yape, Plin, BCP, tarjeta, efectivo u otra transferencia. La venta permanece con pago PENDIENTE; no se confirmó ni realizó un cobro.
-- Solo queda la acción visible Eliminar en el historial. Internamente se conserva la compensación del stock antes de borrar un registro interno; no se permite borrar comprobantes fiscales ni pagos confirmados.
+- Solo queda la acción visible Eliminar en el historial. Internamente se conserva la compensación del stock antes de borrar un registro interno.
 - PDF A4 y ticket contienen un QR generado localmente. El ticket usa 80 mm y texto más grande.
 - El PDF A4 fue descargado y revisado visualmente. El ticket fue generado desde tema oscuro y comprobado con fondo blanco. Los QR de ambos archivos se decodificaron y coincidieron con su número y total.
 - El administrador tiene menú de Usuarios y Reportes; el vendedor tiene su espacio de ventas, sin acciones administrativas. Se probaron con MockMvc los bloqueos del backend, incluyendo 403 al intentar listar usuarios o crear administradores como vendedor.
@@ -84,7 +83,7 @@ docker compose up -d --no-build --no-deps --force-recreate ms-auth
 
 ## 4. Recuperación y usuarios en Postman
 
-Importar `Maranatha-pruebas-revision4.postman_collection.json` mediante Import > Files. Es una colección nueva; no reemplaza las anteriores. En Variables, guardar contraseñas y documentos únicamente de forma local. Las claves Decolecta nunca van en la colección.
+Importar `Maranatha-pruebas-revision4.postman_collection.json` mediante Import > Files. Es una colección nueva; no reemplaza las anteriores. En Variables, guardar contraseñas y documentos únicamente de forma local.
 
 ### Crear vendedor y comprobar permisos
 
@@ -128,36 +127,14 @@ El ejemplo usa un correo de prueba para Mailpit. Para recibir correos externos d
 
 No ejecutar automáticamente toda la colección en Runner: contiene creación de cuenta y cambio de contraseña que deben elegirse conscientemente.
 
-## 5. Decolecta: por qué aparece el mensaje
 
-“Falta configurar la clave de Decolecta en el servidor” significa que el backend no recibió una API Key. **No significa que el DNI/RUC sea falso**. En esa situación no se consulta al proveedor.
-
-1. En IntelliJ, localizar `C:\Users\DIEGO\Downloads\Maranatha-Store-V2-Backend`, donde está `docker-compose.yml`.
-2. Crear o abrir `.env` sin reemplazar otras variables existentes. Evitar que Windows lo guarde como `.env.txt`.
-3. Añadir `DECOLECTA_API_KEY=su_clave_real` y guardar. No compartir ese archivo, no pegar la clave en Angular ni en el chat.
-4. Desde la terminal del backend ejecutar:
-
-```powershell
-docker compose up -d --no-build --no-deps --force-recreate ms-cliente
-```
-
-5. Esperar el arranque y consultar de nuevo en Ventas: DNI de 8 dígitos para boleta; RUC de 11 para factura.
-6. El nombre procede de la respuesta real de Decolecta. La consulta no crea una venta; si el cliente no estaba registrado, se asocia al guardar la venta.
-7. En Postman, iniciar sesión y ejecutar `GET {{baseUrl}}/clientes/documentos/dni/{{dni}}` o `/ruc/{{ruc}}` con Bearer Token. La clave del proveedor la añade el servidor.
-
-Implementación: `C:\Users\DIEGO\Downloads\Maranatha-Store-V2-Backend\ms-cliente\src\main\java\com\libreria\cliente\service\DecolectaService.java` y `DocumentoController.java` en el mismo módulo. Docker pasa la variable a ms-cliente; la clave no se incluye en la imagen ni en Git.
-
-Decolecta es el proveedor privado utilizado para las consultas DNI/RUC; no se anuncia una conexión directa contratada con RENIEC/SUNAT. Documentación oficial: https://decolecta.gitbook.io/docs/servicios/integrations-2 y https://decolecta.gitbook.io/docs/servicios/integrations
-
-La cuenta del usuario indica 100 peticiones mensuales. Sin su clave configurada no se pudo verificar qué servicios habilita esa cuenta ni ejecutar consultas reales. Cuota/permisos del proveedor pueden impedir una consulta aun con clave; se mostrarán errores, nunca datos inventados. La caché breve evita repetir algunas consultas idénticas.
-
-## 6. Qué significan inventario y gráficos
+## 5. Qué significan inventario y gráficos
 
 En su captura, **32 disponibles + 5 por reponer = 37 tipos de productos activos**. Son artículos distintos, no la suma de unidades físicas. Un producto con 100 unidades cuenta como un tipo de producto. La regla actual considera vendible un artículo con más de 5 unidades; los de 0 a 5 requieren reposición. El filtro Stock bajo separa 1–5, y Sin stock separa 0.
 
-Las barras del dashboard provienen de ventas reales registradas en el backend, excluyendo anuladas. Se consultan al abrir Inicio, cada **30 segundos** y al pulsar Actualizar. Es actualización periódica, no transmisión instantánea mediante WebSockets. Los importes registrados no prueban cobros bancarios.
+Las barras del dashboard provienen de ventas reales registradas en el backend, excluyendo anuladas. Se consultan al abrir Inicio, cada **30 segundos** y al pulsar Actualizar. Es actualización periódica, no transmisión instantánea mediante WebSockets.
 
-## 7. Reportes Excel: ejemplo claro
+## 6. Reportes Excel: ejemplo claro
 
 1. Ingresar como administrador y abrir Reportes Excel.
 2. Pulsar Actualizar datos.
@@ -170,10 +147,3 @@ Las barras del dashboard provienen de ventas reales registradas en el backend, e
 
 Los reportes se actualizan con su botón o al volver a cargar la página; no se presentan como un flujo bancario en tiempo real.
 
-## 8. Pagos y QR
-
-El selector de métodos guarda la intención del cliente, no una transferencia. Para un cobro automático faltan credenciales comerciales, Checkout/tokenización, confirmación verificable del proveedor e idempotencia. No se generaron QR bancarios ficticios ni se solicitaron datos de tarjetas. El adaptador de Culqi está preparado para pruebas, pero no hubo transacciones comprobadas en un sandbox oficial. Documentación: https://docs.culqi.com/es/documentacion/pagos-online/integracion-vs-produccion/
-
-El QR del comprobante contiene texto con número, fecha, cliente, base, IGV, total, estado y detalle de la venta (o un resumen cuando el detalle es muy largo). Puede leerse con un lector QR compatible con texto, sin una página pública. Es una fotografía del registro al generar el PDF: un PDF anterior no cambia si luego se elimina o modifica una venta. No es un QR de pago ni validación fiscal SUNAT.
-
-El diseño nuevo toma la distribución, tarjetas y jerarquía de las referencias del usuario, conservando su logo y funciones. No copia cifras de muestra del diseño como si fueran datos del negocio.

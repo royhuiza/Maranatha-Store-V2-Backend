@@ -5,9 +5,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.libreria.facturacion.dto.ConsultaRucResponse;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.boot.web.client.RestTemplateBuilder;
 import org.springframework.http.*;
-import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.*;
 import org.springframework.web.server.ResponseStatusException;
@@ -20,7 +18,6 @@ public class ConsultaRucServiceImpl implements ConsultaRucService {
     private final boolean consultaHabilitada;
     private final RestTemplate http;
     private final String clienteServiceUrl;
-    private final HttpServletRequest request;
 
     @Autowired
     public ConsultaRucServiceImpl(
@@ -28,23 +25,19 @@ public class ConsultaRucServiceImpl implements ConsultaRucService {
             boolean consultaHabilitada,
             @Value("${consulta-ruc.cliente-url:http://ms-cliente:8083}")
             String clienteServiceUrl,
-            RestTemplateBuilder builder,
-            HttpServletRequest request
+            RestTemplate restTemplate
     ) {
         this.consultaHabilitada = consultaHabilitada;
         this.clienteServiceUrl = clienteServiceUrl;
-        this.request = request;
-        this.http = builder
-                .setConnectTimeout(Duration.ofSeconds(4))
-                .setReadTimeout(Duration.ofSeconds(10))
-                .build();
+        // El token del usuario lo agrega el interceptor del RestTemplate
+        // (ver RestTemplateConfig): ms-cliente lo exige para responder.
+        this.http = restTemplate;
     }
 
     // Compatibilidad con las pruebas existentes.
     public ConsultaRucServiceImpl(boolean consultaHabilitada) {
         this.consultaHabilitada = consultaHabilitada;
         this.clienteServiceUrl = "";
-        this.request = null;
         this.http = new RestTemplate();
     }
 
@@ -77,16 +70,7 @@ public class ConsultaRucServiceImpl implements ConsultaRucService {
                     http.exchange(
                             url,
                             HttpMethod.GET,
-                            new HttpEntity<Void>(
-                                    new HttpHeaders() {{
-                                        if (request != null) {
-                                            String authorization = request.getHeader(HttpHeaders.AUTHORIZATION);
-                                            if (authorization != null && authorization.startsWith("Bearer ")) {
-                                                set(HttpHeaders.AUTHORIZATION, authorization);
-                                            }
-                                        }
-                                    }}
-                            ),
+                            new HttpEntity<Void>(new HttpHeaders()),
                             JsonNode.class
                     );
 

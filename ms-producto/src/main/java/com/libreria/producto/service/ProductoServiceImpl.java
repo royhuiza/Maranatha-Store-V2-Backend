@@ -56,7 +56,7 @@ public class ProductoServiceImpl implements ProductoService {
     @Override
     @Transactional(readOnly = true)
     public List<Producto> listarStockBajo() {
-        return repository.findByActivoTrueAndStockLessThanEqualOrderByStockAsc(10);
+        return repository.findStockBajo();
     }
 
     @Override
@@ -89,10 +89,12 @@ public class ProductoServiceImpl implements ProductoService {
     @Transactional
     public Producto crearProducto(Producto producto) {
         producto.setId(null);
-        producto.setNombre(producto.getNombre().trim());
+        producto.setNombre(limpiarNombre(producto.getNombre()));
+        validarNombreUnico(producto.getNombre(), null);
         producto.setDescripcion(normalizar(producto.getDescripcion()));
         producto.setPrecio(producto.getPrecio().setScale(2, RoundingMode.HALF_UP));
         if (producto.getActivo() == null) producto.setActivo(true);
+        producto.setStockMinimo(10);
         return repository.save(producto);
     }
 
@@ -100,22 +102,22 @@ public class ProductoServiceImpl implements ProductoService {
     @Override
     @Transactional
     public Producto actualizarProducto(Long id, Producto cambios) {
+        // Adquirir el candado de nombres antes del bloqueo de fila, como en la importación.
+        jdbc.query("select pg_advisory_xact_lock(83910517)", rs -> { });
         Producto producto = bloquearProducto(id);
-        producto.setNombre(cambios.getNombre().trim());
+        String nombre = limpiarNombre(cambios.getNombre());
+        // Solo se valida si el nombre cambia: así se pueden editar registros antiguos ya repetidos.
+        if (!nombre.equalsIgnoreCase(producto.getNombre().strip())) validarNombreUnico(nombre, id);
+        producto.setNombre(nombre);
         producto.setDescripcion(normalizar(cambios.getDescripcion()));
         producto.setPrecio(cambios.getPrecio().setScale(2, RoundingMode.HALF_UP));
-        producto.setStock(cambios.getStock());
-
-        if (cambios.getActivo() != null) {
-            producto.setActivo(cambios.getActivo());
-        }
-
-        if (cambios.getAfectacionIgv() != null) {
-            producto.setAfectacionIgv(cambios.getAfectacionIgv());
-        }
-
+        producto.setStockMinimo(10);
+        if (cambios.getActivo() != null) producto.setActivo(cambios.getActivo());
+        if (cambios.getAfectacionIgv() != null) producto.setAfectacionIgv(cambios.getAfectacionIgv());
         return repository.save(producto);
     }
+    @Override
+    @Transactional
     public Producto descontarStock(Long id, int cantidad) {
         Producto producto = repository.findByIdForUpdate(id)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Producto no encontrado"));
@@ -126,10 +128,10 @@ public class ProductoServiceImpl implements ProductoService {
 
     private void validarSalida(Producto producto, int cantidad) {
         if (!Boolean.TRUE.equals(producto.getActivo())) {
-            throw new ResponseStatusException(HttpStatus.CONFLICT, "El producto estÃ¡ inactivo");
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "El producto está inactivo");
         }
         if (cantidad < 1) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "La cantidad debe ser positiva");
-        if (producto.getStock() <= 5) throw new ResponseStatusException(HttpStatus.CONFLICT, "Stock bajo: no se permite vender productos con 5 unidades o menos");
+        if (producto.getStock() <= 0) throw new ResponseStatusException(HttpStatus.CONFLICT, "Sin stock: " + producto.getNombre() + " no tiene unidades disponibles");
         if (producto.getStock() < cantidad) {
             throw new ResponseStatusException(HttpStatus.CONFLICT,
                     "Stock insuficiente para " + producto.getNombre() + ". Disponible: " + producto.getStock());
@@ -139,6 +141,7 @@ public class ProductoServiceImpl implements ProductoService {
     @Override
     @Transactional
     public Producto reponerStock(Long id, int cantidad) {
+        if (cantidad < 1) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "La cantidad debe ser positiva");
         Producto producto = repository.findByIdForUpdate(id)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Producto no encontrado"));
         producto.setStock(stockResultante(producto, cantidad));
@@ -150,12 +153,11 @@ public class ProductoServiceImpl implements ProductoService {
     public void eliminarProducto(Long id) {
         Producto producto = bloquearProducto(id);
         if (producto.getStock() > 0) {
-            throw new ResponseStatusException(HttpStatus.CONFLICT, "El producto aÃºn tiene stock. Ajusta sus existencias antes de eliminarlo.");
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "El producto aún tiene stock. Ajusta sus existencias antes de eliminarlo.");
         }
-        if (producto.salidasPorVenta() > 0 || ventas.tieneVentas(id)) {
-            throw new ResponseStatusException(HttpStatus.CONFLICT, "El producto tiene ventas asociadas y no se puede eliminar.");
-        }
-        repository.delete(producto);
+        // Regla de negocio: no se borra del catálogo; queda INACTIVO y conserva su historial.
+        producto.setActivo(false);
+        repository.save(producto);
     }
 
     @Override
@@ -185,7 +187,7 @@ public class ProductoServiceImpl implements ProductoService {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Indique cantidades positivas por producto.");
         }
         var ordenadas = new TreeMap<>(cantidades);
-        // Una reversa que llega primero impide un descuento tardÃ­o con el mismo ID.
+        // Una reversa que llega primero impide un descuento tardío con el mismo ID.
         int creada = jdbc.update("""
                 insert into operaciones_stock_venta (id, cantidades, revertida) values (?, ?, ?)
                 on conflict (id) do nothing
@@ -194,11 +196,11 @@ public class ProductoServiceImpl implements ProductoService {
         if (creada == 0) {
             var previa = jdbc.queryForMap("select cantidades, revertida from operaciones_stock_venta where id = ? for update", idOperacion);
             if (!ordenadas.toString().equals(previa.get("cantidades"))) {
-                throw new ResponseStatusException(HttpStatus.CONFLICT, "La operaciÃ³n de stock ya existe con otros artÃ­culos.");
+                throw new ResponseStatusException(HttpStatus.CONFLICT, "La operación de stock ya existe con otros artículos.");
             }
             if (Boolean.TRUE.equals(previa.get("revertida"))) {
                 if (reversa) return;
-                throw new ResponseStatusException(HttpStatus.CONFLICT, "La operaciÃ³n de stock ya fue revertida.");
+                throw new ResponseStatusException(HttpStatus.CONFLICT, "La operación de stock ya fue revertida.");
             }
             if (!reversa) return;
             jdbc.update("update operaciones_stock_venta set revertida = true where id = ?", idOperacion);
@@ -229,9 +231,26 @@ public class ProductoServiceImpl implements ProductoService {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "La cantidad supera el stock disponible.");
         }
         if (nuevo > Integer.MAX_VALUE) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "El stock supera el mÃ¡ximo permitido.");
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "El stock supera el máximo permitido.");
         }
         return (int) nuevo;
+    }
+
+    private String limpiarNombre(String nombre) {
+        return nombre.strip().replaceAll("\\s+", " ");
+    }
+
+    /** T06: no se permiten dos artículos con el mismo nombre (sin distinguir mayúsculas). */
+    private void validarNombreUnico(String nombre, Long idActual) {
+        // Mismo candado que la importación Excel: evita duplicados por registros simultáneos.
+        if (jdbc != null) jdbc.query("select pg_advisory_xact_lock(83910517)", rs -> { });
+        boolean existe = idActual == null
+                ? repository.existsByNombreIgnoreCase(nombre)
+                : repository.existsByNombreIgnoreCaseAndIdNot(nombre, idActual);
+        if (existe) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT,
+                    "Ya existe un artículo llamado \"" + nombre + "\". Usa otro nombre o edita el existente.");
+        }
     }
 
     private String normalizar(String value) {

@@ -17,6 +17,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.client.HttpStatusCodeException;
 import org.springframework.web.client.ResourceAccessException;
 import org.springframework.web.server.ResponseStatusException;
+import com.libreria.ventas.model.EstadoSunat;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
@@ -31,14 +32,123 @@ public class VentaServiceImpl implements VentaService {
     private final ProductoClient productoClient;
     private final ObjectMapper objectMapper;
     private final VentaDetalleRepository detalles;
+    private final VentaOperacionService ventaOperacionService;
+    private final VentaRequestHashService ventaRequestHashService;
+    private final VentaPersistenciaService ventaPersistenciaService;
 
-    public VentaServiceImpl(VentaRepository ventaRepository, ClienteClient clienteClient,
-                            ProductoClient productoClient, ObjectMapper objectMapper, VentaDetalleRepository detalles) {
+    @org.springframework.beans.factory.annotation.Autowired
+    public VentaServiceImpl(
+            VentaRepository ventaRepository,
+            ClienteClient clienteClient,
+            ProductoClient productoClient,
+            ObjectMapper objectMapper,
+            VentaOperacionService ventaOperacionService,
+            VentaRequestHashService ventaRequestHashService,
+            VentaPersistenciaService ventaPersistenciaService,
+            VentaDetalleRepository detalles){
+
         this.ventaRepository = ventaRepository;
         this.clienteClient = clienteClient;
         this.productoClient = productoClient;
         this.objectMapper = objectMapper;
         this.detalles = detalles;
+        this.ventaOperacionService = ventaOperacionService;
+        this.ventaRequestHashService = ventaRequestHashService;
+        this.ventaPersistenciaService = ventaPersistenciaService;
+    }
+
+    // Constructor conservado para las pruebas de idempotencia existentes.
+    public VentaServiceImpl(VentaRepository ventaRepository, ClienteClient clienteClient,
+            ProductoClient productoClient, ObjectMapper objectMapper,
+            VentaOperacionService ventaOperacionService, VentaRequestHashService ventaRequestHashService,
+            VentaPersistenciaService ventaPersistenciaService) {
+        this(ventaRepository, clienteClient, productoClient, objectMapper,
+                ventaOperacionService, ventaRequestHashService, ventaPersistenciaService, null);
+    }
+
+    private Venta verificarOperacionExistente(
+            ResultadoReservaVenta reserva
+    ) {
+
+        if (reserva.nueva()) {
+            return null;
+        }
+
+        VentaOperacion operacion = reserva.operacion();
+
+        if (operacion.getEstado()
+                == EstadoVentaOperacion.COMPLETADA) {
+
+            if (operacion.getVentaId() == null) {
+
+                throw new ResponseStatusException(
+                        HttpStatus.CONFLICT,
+                        "Operacion completada sin referencia de venta"
+                );
+            }
+
+            return ventaRepository
+                    .findOneById(operacion.getVentaId())
+                    .orElseThrow(() ->
+                            new ResponseStatusException(
+                                    HttpStatus.CONFLICT,
+                                    "No se encontro la venta registrada"
+                            ));
+        }
+
+        // Recuperar una venta que ya fue guardada
+        // antes de una interrupcion del servicio.
+
+        Venta recuperada = recuperarVentaGuardada(
+                operacion.getIdempotencyKey()
+        );
+
+        if (recuperada != null) {
+
+            ventaOperacionService.completar(
+                    operacion.getId(),
+                    recuperada.getId()
+            );
+
+            return ventaRepository
+                    .findOneById(recuperada.getId())
+                    .orElseThrow(() ->
+                            new ResponseStatusException(
+                                    HttpStatus.CONFLICT,
+                                    "No se pudo recuperar la venta"
+                            ));
+        }
+
+        if (operacion.getEstado()
+                == EstadoVentaOperacion.REQUIERE_REVISION) {
+
+            throw new ResponseStatusException(
+                    HttpStatus.CONFLICT,
+                    "La operacion requiere revision de inventario"
+            );
+        }
+
+        if (operacion.getEstado()
+                == EstadoVentaOperacion.EN_PROCESO) {
+
+            throw new ResponseStatusException(
+                    HttpStatus.CONFLICT,
+                    "La operacion ya esta en proceso"
+            );
+        }
+
+        throw new ResponseStatusException(
+                HttpStatus.CONFLICT,
+                "Estado de operacion no reconocido"
+        );
+    }
+
+
+    private Venta recuperarVentaGuardada(String idempotencyKey) {
+
+        return ventaPersistenciaService
+                .buscarPorIdempotencyKey(idempotencyKey)
+                .orElse(null);
     }
 
     @Override
@@ -55,44 +165,99 @@ public class VentaServiceImpl implements VentaService {
     }
 
     @Override
-    @Transactional
     public Venta crearVenta(CrearVentaRequest request) {
-        ClienteDTO cliente = obtenerYValidarCliente(request);
-        LinkedHashMap<Long, Integer> cantidades = agruparCantidades(request.getDetalles());
-        LinkedHashMap<Long, ProductoDTO> productos = consultarYValidarProductos(cantidades);
 
-        Venta venta = construirVenta(request, cliente, cantidades, productos);
-        UUID idOperacionStock = UUID.randomUUID();
-        boolean stockDescontado = false;
+        String clave = request.getIdempotencyKey();
+
+        String hash = ventaRequestHashService.calcular(request);
+
+        ResultadoReservaVenta reserva =
+                ventaOperacionService.reservarConResultado(
+                        clave,
+                        hash
+                );
+
+        Venta existente = verificarOperacionExistente(reserva);
+
+        if (existente != null) {
+            return existente;
+        }
+
+        Long operacionId = reserva.operacion().getId();
+
         try {
-            productoClient.aplicarStockVenta(idOperacionStock, cantidades, false);
-            stockDescontado = true;
 
-            ventaRepository.saveAndFlush(venta);
-            venta.setNumero(String.format("%08d", venta.getId()));
-            return ventaRepository.saveAndFlush(venta);
+            ClienteDTO cliente =
+                    obtenerYValidarCliente(request);
+
+            LinkedHashMap<Long, Integer> cantidades =
+                    agruparCantidades(request.getDetalles());
+
+            LinkedHashMap<Long, ProductoDTO> productos =
+                    consultarYValidarProductos(
+                            cantidades,
+                            request.getTipoComprobante()
+                    );
+
+            Venta venta = construirVenta(
+                    request,
+                    cliente,
+                    cantidades,
+                    productos
+            );
+
+            for (Map.Entry<Long, Integer> entry :
+                    cantidades.entrySet()) {
+
+                String claveInventario =
+                        "VENTA-" + operacionId
+                                + "-" + entry.getKey();
+
+                productoClient.descontarStockIdempotente(
+                        entry.getKey(),
+                        entry.getValue(),
+                        claveInventario
+                );
+            }
+
+            Venta guardada =
+                    ventaPersistenciaService.guardarVenta(
+                            venta,
+                            clave
+                    );
+
+            ventaOperacionService.completar(
+                    operacionId,
+                    guardada.getId()
+            );
+
+            return guardada;
+
         } catch (Exception ex) {
-            if (stockDescontado || ex instanceof ResourceAccessException) {
-                try {
-                    productoClient.aplicarStockVenta(idOperacionStock, cantidades, true);
-                } catch (RuntimeException falloReposicion) {
-                    ex.addSuppressed(falloReposicion);
-                    throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE,
-                            "La venta no se guardó y no se pudo confirmar la reposición. Revise el inventario.", ex);
-                }
+
+            ventaOperacionService.marcarRevision(operacionId);
+
+            if (ex instanceof ResponseStatusException error) {
+                throw error;
             }
-            if (ex instanceof ResponseStatusException responseStatusException) {
-                throw responseStatusException;
-            }
-            if (ex instanceof HttpStatusCodeException httpException) {
-                throw new ResponseStatusException(HttpStatus.CONFLICT, mensajeRemoto(httpException), ex);
-            }
+
             if (ex instanceof ResourceAccessException) {
-                throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE,
-                        "No se pudo comunicar con el servicio de productos", ex);
+
+                throw new ResponseStatusException(
+                        HttpStatus.SERVICE_UNAVAILABLE,
+                        "Operacion pendiente de revision. "
+                                + "No registre nuevamente la compra.",
+                        ex
+                );
             }
-            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR,
-                    "No se pudo guardar la venta; el stock fue restaurado", ex);
+
+            throw new ResponseStatusException(
+                    HttpStatus.CONFLICT,
+                    "No se pudo confirmar la operacion. "
+                            + "Se requiere verificar la venta "
+                            + "y el inventario antes de reintentar.",
+                    ex
+            );
         }
     }
 
@@ -101,8 +266,10 @@ public class VentaServiceImpl implements VentaService {
     public Venta anularVenta(Long id) {
         Venta venta = ventaRepository.findLockedById(id)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Venta no encontrada"));
-        if (venta.isValidadoSunat()) throw new ResponseStatusException(HttpStatus.CONFLICT,"Un comprobante fiscal requiere su proceso de baja o nota de crédito");
-        if (venta.getEstadoPago() != null && !"PENDIENTE".equals(venta.getEstadoPago())) throw new ResponseStatusException(HttpStatus.CONFLICT,"Revise el pago antes de anular esta venta");
+        if (venta.isValidadoSunat() || (venta.getEstadoSunat() != null
+                && venta.getEstadoSunat() != EstadoSunat.PENDIENTE
+                && venta.getEstadoSunat() != EstadoSunat.NO_APLICA)) throw new ResponseStatusException(HttpStatus.CONFLICT, "Un comprobante fiscal requiere su proceso de baja o nota de credito");
+        if (venta.getEstadoPago() != null && !"PENDIENTE".equals(venta.getEstadoPago())) throw new ResponseStatusException(HttpStatus.CONFLICT, "Revise el pago antes de anular esta venta");
         if (venta.getEstado() == EstadoVenta.ANULADA) return venta;
 
         List<VentaDetalle> repuestos = new ArrayList<>();
@@ -129,40 +296,109 @@ public class VentaServiceImpl implements VentaService {
     public void eliminarVenta(Long id) {
         Venta venta = ventaRepository.findLockedById(id)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Venta no encontrada"));
-        if (venta.isValidadoSunat()) throw new ResponseStatusException(HttpStatus.CONFLICT,"No se permite eliminar comprobantes fiscales");
+        if (venta.isValidadoSunat() || (venta.getEstadoSunat() != null
+                && venta.getEstadoSunat() != EstadoSunat.PENDIENTE
+                && venta.getEstadoSunat() != EstadoSunat.NO_APLICA)) throw new ResponseStatusException(HttpStatus.CONFLICT,"No se permite eliminar comprobantes fiscales");
         if (venta.getEstadoPago() != null && !"PENDIENTE".equals(venta.getEstadoPago())) throw new ResponseStatusException(HttpStatus.CONFLICT,"No se permite eliminar una venta con pago registrado");
         if (venta.getEstado() != EstadoVenta.ANULADA) throw new ResponseStatusException(HttpStatus.CONFLICT,"Anule la venta antes de eliminarla para reponer su stock una sola vez");
+        if (venta.getIdempotencyKey() != null) throw new ResponseStatusException(HttpStatus.CONFLICT,
+                "Conserve la venta anulada para mantener la trazabilidad");
         ventaRepository.delete(venta);
         ventaRepository.flush();
     }
 
     private ClienteDTO obtenerYValidarCliente(CrearVentaRequest request) {
+
         ClienteDTO cliente = null;
-        if (request.getClienteId() != null) {
+
+        String documento = request.getDocumento() == null ? "" : request.getDocumento().trim();
+        String numeroExplicito = Objects.toString(request.getNumeroDocumento(), "").trim();
+        if (!documento.isEmpty() && !numeroExplicito.isEmpty() && !documento.equals(numeroExplicito)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Los documentos del comprador no coinciden");
+        }
+        if (!documento.isEmpty()) {
+            String tipo = documento.length() == 11 ? "RUC" : "DNI";
             try {
-                cliente = clienteClient.obtenerCliente(request.getClienteId());
-            } catch (HttpStatusCodeException ex) {
-                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "El cliente seleccionado no existe", ex);
-            } catch (ResourceAccessException ex) {
+                cliente = clienteClient.obtenerClientePorDocumento(tipo, documento);
+            } catch (org.springframework.web.client.HttpClientErrorException.NotFound ex) {
+                cliente = null;
+            } catch (org.springframework.web.client.HttpClientErrorException ex) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                        "No se pudo validar el documento " + documento, ex);
+            } catch (org.springframework.web.client.ResourceAccessException ex) {
                 throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE,
                         "No se pudo comunicar con el servicio de clientes", ex);
             }
         }
 
-        if (request.getTipoComprobante() == TipoComprobante.FACTURA) {
-            if (cliente == null) {
-                throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
-                        "Para emitir una factura debe seleccionar un cliente");
-            }
-            if (!"RUC".equalsIgnoreCase(cliente.getTipoDocumento())
-                    || cliente.getNumeroDocumento() == null
-                    || !cliente.getNumeroDocumento().matches("\\d{11}")) {
-                throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
-                        "Para emitir una factura el cliente debe tener un RUC válido de 11 dígitos");
+        if (cliente == null && request.getClienteId() != null) {
+            try {
+                cliente = clienteClient.obtenerCliente(request.getClienteId());
+            } catch (HttpStatusCodeException ex) {
+                throw new ResponseStatusException(
+                        HttpStatus.BAD_REQUEST,
+                        "El cliente seleccionado no existe", ex);
+            } catch (ResourceAccessException ex) {
+                throw new ResponseStatusException(
+                        HttpStatus.SERVICE_UNAVAILABLE,
+                        "No se pudo comunicar con el servicio de clientes", ex);
             }
         }
+        if (cliente == null) {
+            String tipo = Objects.toString(
+                    request.getTipoDocumento(), "").trim().toUpperCase(Locale.ROOT);
+
+            String numero = Objects.toString(
+                    request.getNumeroDocumento(), "").trim();
+
+            String nombre = Objects.toString(
+                    request.getClienteNombre(), "").trim();
+
+            if (!numero.isBlank() || !nombre.isBlank() || !tipo.isBlank()) {
+
+                if (nombre.isBlank()) {
+                    throw new ResponseStatusException(
+                            HttpStatus.BAD_REQUEST,
+                            "Ingrese el nombre del comprador");
+                }
+
+                boolean documentoValido =
+                        ("DNI".equals(tipo) && numero.matches("\\d{8}"))
+                                || ("RUC".equals(tipo) && numero.matches("\\d{11}"));
+
+                if (!documentoValido) {
+                    throw new ResponseStatusException(
+                            HttpStatus.BAD_REQUEST,
+                            "Documento no válido");
+                }
+
+                cliente = new ClienteDTO();
+                cliente.setNombre(nombre);
+                cliente.setTipoDocumento(tipo);
+                cliente.setNumeroDocumento(numero);
+            }
+        }
+
+        if (cliente != null && ((!documento.isEmpty() && !documento.equals(cliente.getNumeroDocumento()))
+                || (!numeroExplicito.isEmpty() && !numeroExplicito.equals(cliente.getNumeroDocumento()))
+                || (request.getClienteId() != null && !request.getClienteId().equals(cliente.getId())))) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Los datos del cliente no coinciden");
+        }
+        if (request.getTipoComprobante() == TipoComprobante.FACTURA) {
+            if (cliente == null
+                    || !"RUC".equalsIgnoreCase(cliente.getTipoDocumento())
+                    || cliente.getNumeroDocumento() == null
+                    || !cliente.getNumeroDocumento().matches("\\d{11}")) {
+
+                throw new ResponseStatusException(
+                        HttpStatus.BAD_REQUEST,
+                        "La factura requiere un RUC de 11 dígitos");
+            }
+        }
+
         return cliente;
     }
+
 
     private LinkedHashMap<Long, Integer> agruparCantidades(List<DetalleVentaRequest> detalles) {
         LinkedHashMap<Long, Integer> cantidades = new LinkedHashMap<>();
@@ -176,7 +412,8 @@ public class VentaServiceImpl implements VentaService {
         return cantidades;
     }
 
-    private LinkedHashMap<Long, ProductoDTO> consultarYValidarProductos(Map<Long, Integer> cantidades) {
+    private LinkedHashMap<Long, ProductoDTO> consultarYValidarProductos(
+            Map<Long, Integer> cantidades, TipoComprobante tipoComprobante) {
         LinkedHashMap<Long, ProductoDTO> productos = new LinkedHashMap<>();
         for (Map.Entry<Long, Integer> entry : cantidades.entrySet()) {
             try {
@@ -188,10 +425,23 @@ public class VentaServiceImpl implements VentaService {
                     throw new ResponseStatusException(HttpStatus.CONFLICT,
                             "El producto " + producto.getNombre() + " está inactivo");
                 }
-                if (producto.getStock() <= 5) throw new ResponseStatusException(HttpStatus.CONFLICT, "Stock bajo para " + producto.getNombre() + ": no vendible");
+                if (producto.getStock() <= 0) throw new ResponseStatusException(HttpStatus.CONFLICT, "Sin stock: " + producto.getNombre() + " no tiene unidades disponibles");
                 if (producto.getStock() < entry.getValue()) {
                     throw new ResponseStatusException(HttpStatus.CONFLICT,
                             "Stock insuficiente para " + producto.getNombre() + ". Disponible: " + producto.getStock());
+                }
+                // Las facturas y boletas requieren una clasificación tributaria conocida.
+                // Las notas de pedido conservan su comportamiento anterior.
+                if (tipoComprobante != TipoComprobante.NOTA_PEDIDO) {
+                    String afectacion = producto.getAfectacionIgv();
+                    if (afectacion == null ||
+                            !Set.of("GRAVADO", "EXONERADO", "INAFECTO").contains(afectacion)) {
+                        throw new ResponseStatusException(
+                                HttpStatus.BAD_REQUEST,
+                                "El producto " + producto.getNombre()
+                                        + " no tiene una clasificación tributaria válida"
+                        );
+                    }
                 }
                 productos.put(entry.getKey(), producto);
             } catch (HttpStatusCodeException ex) {
@@ -205,13 +455,17 @@ public class VentaServiceImpl implements VentaService {
     }
 
     private Venta construirVenta(CrearVentaRequest request, ClienteDTO cliente,
-                                  LinkedHashMap<Long, Integer> cantidades,
-                                  LinkedHashMap<Long, ProductoDTO> productos) {
+                                 LinkedHashMap<Long, Integer> cantidades,
+                                 LinkedHashMap<Long, ProductoDTO> productos) {
         Venta venta = new Venta();
         venta.setClienteId(cliente == null ? null : cliente.getId());
         venta.setClienteNombre(cliente == null ? "Público general" : cliente.nombreCompleto().trim());
         venta.setClienteDocumento(cliente == null || cliente.getNumeroDocumento() == null ? null
                 : cliente.getTipoDocumento() + " " + cliente.getNumeroDocumento());
+        String documento = request.getDocumento() == null ? "" : request.getDocumento().trim();
+        if (venta.getClienteDocumento() == null && !documento.isEmpty()) {
+            venta.setClienteDocumento((documento.length() == 11 ? "RUC " : "DNI ") + documento);
+        }
         venta.setFecha(LocalDateTime.now(PeruTime.ZONE));
         venta.setFechaZona(PeruTime.ZONE.getId());
         venta.setTipoComprobante(request.getTipoComprobante());
@@ -219,6 +473,11 @@ public class VentaServiceImpl implements VentaService {
         venta.setSerie(seriePara(request.getTipoComprobante()));
         venta.setNumero("PENDIENTE");
         venta.setEstado(EstadoVenta.EMITIDA);
+        venta.setEstadoSunat(
+                request.getTipoComprobante() == TipoComprobante.NOTA_PEDIDO
+                        ? EstadoSunat.NO_APLICA
+                        : EstadoSunat.PENDIENTE
+        );
 
         BigDecimal total = BigDecimal.ZERO;
         for (Map.Entry<Long, Integer> entry : cantidades.entrySet()) {
@@ -232,6 +491,7 @@ public class VentaServiceImpl implements VentaService {
             detalle.setCantidad(entry.getValue());
             detalle.setPrecioUnitario(precio);
             detalle.setSubtotal(subtotal);
+            detalle.setAfectacionIgv(producto.getAfectacionIgv());
             venta.agregarDetalle(detalle);
             total = total.add(subtotal);
         }

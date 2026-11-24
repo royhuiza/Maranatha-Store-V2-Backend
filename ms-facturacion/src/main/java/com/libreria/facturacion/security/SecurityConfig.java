@@ -9,6 +9,7 @@ import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
+import jakarta.servlet.DispatcherType;
 
 @Configuration
 public class SecurityConfig {
@@ -16,7 +17,8 @@ public class SecurityConfig {
     @Bean
     public SecurityFilterChain securityFilterChain(
             HttpSecurity http,
-            JwtAuthenticationFilter jwtFilter
+            JwtAuthenticationFilter jwtFilter,
+            InternalTokenService internalTokenService
     ) throws Exception {
 
         return http
@@ -49,12 +51,25 @@ public class SecurityConfig {
                 )
 
                 .authorizeHttpRequests(auth -> auth
+                        .dispatcherTypeMatchers(DispatcherType.ERROR).permitAll()
+                        .requestMatchers(
+                                HttpMethod.POST,
+                                "/internal/facturacion/emision/beta"
+                        ).hasRole("SERVICE_VENTAS")
+
+                        .requestMatchers("/internal/**").denyAll()
                         .requestMatchers(
                                 "/swagger-ui/**",
                                 "/swagger-ui.html",
                                 "/api-docs/**",
                                 "/v3/api-docs/**"
                         ).permitAll()
+
+                        // Spring reenvia a /error cuando un controller lanza
+                        // excepcion. Esa peticion interna no lleva el token,
+                        // asi que sin permitAll terminaba en 401 y el cliente
+                        // recibia un error en vez del mensaje real.
+                        .requestMatchers("/error").permitAll()
 
                         .requestMatchers(
                                 HttpMethod.GET,
@@ -72,7 +87,12 @@ public class SecurityConfig {
                         jwtFilter,
                         UsernamePasswordAuthenticationFilter.class
                 )
-
+                .addFilterBefore(
+                        new InternalAuthenticationFilter(
+                                internalTokenService
+                        ),
+                        JwtAuthenticationFilter.class
+                )
                 .build();
     }
 }

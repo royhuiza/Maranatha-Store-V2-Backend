@@ -10,7 +10,8 @@ import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import org.springframework.validation.beanvalidation.LocalValidatorFactoryBean;
-
+import com.libreria.producto.service.InventarioIdempotenteService;
+import com.libreria.producto.repository.InventarioOperacionRepository;
 import java.math.BigDecimal;
 
 import static org.mockito.ArgumentMatchers.eq;
@@ -23,6 +24,9 @@ class ProductoControllerTest {
     private final ProductoService service = mock(ProductoService.class);
     private final ImportacionProductos importacion = mock(ImportacionProductos.class);
     private final ObjectMapper objectMapper = new ObjectMapper();
+    private final InventarioIdempotenteService inventarioIdempotenteService = mock(InventarioIdempotenteService.class);
+
+    private final InventarioOperacionRepository inventarioOperacionRepository = mock(InventarioOperacionRepository.class);
 
     private MockMvc crearMockMvc() {
         LocalValidatorFactoryBean validator =
@@ -30,7 +34,12 @@ class ProductoControllerTest {
         validator.afterPropertiesSet();
 
         return MockMvcBuilders
-                .standaloneSetup(new ProductoController(service, importacion))
+                .standaloneSetup(new ProductoController(
+                        service,
+                        importacion,
+                        inventarioIdempotenteService,
+                        inventarioOperacionRepository
+                ))
                 .setValidator(validator)
                 .build();
     }

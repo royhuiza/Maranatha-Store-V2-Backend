@@ -6,7 +6,11 @@ import jakarta.persistence.*;
 import java.math.BigDecimal;
 
 @Entity
-@Table(name = "ventas_detalle")
+// T68: índices para cargar el detalle de cada venta y saber si un producto tiene ventas.
+@Table(name = "ventas_detalle", indexes = {
+        @Index(name = "idx_ventas_detalle_venta", columnList = "venta_id"),
+        @Index(name = "idx_ventas_detalle_producto", columnList = "producto_id")
+})
 public class VentaDetalle {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -16,6 +20,9 @@ public class VentaDetalle {
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "venta_id", nullable = false)
     private Venta venta;
+
+    @Column(name = "afectacion_igv", length = 30)
+    private String afectacionIgv;
 
     @Column(name = "producto_id", nullable = false)
     private Long productoId;
@@ -47,4 +54,12 @@ public class VentaDetalle {
     public void setPrecioUnitario(BigDecimal precioUnitario) { this.precioUnitario = precioUnitario; }
     public BigDecimal getSubtotal() { return subtotal; }
     public void setSubtotal(BigDecimal subtotal) { this.subtotal = subtotal; }
+
+    public String getAfectacionIgv() {
+        return afectacionIgv;
+    }
+
+    public void setAfectacionIgv(String afectacionIgv) {
+        this.afectacionIgv = afectacionIgv;
+    }
 }

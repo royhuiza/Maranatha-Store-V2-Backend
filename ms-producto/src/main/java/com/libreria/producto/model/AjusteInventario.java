@@ -11,6 +11,12 @@ public class AjusteInventario {
     private Long id;
     @Column(name = "producto_id", nullable = false)
     private Long productoId;
+    /** T47: llave foránea ajustes_inventario.producto_id → productos.id (solo lectura; se guarda con productoId). */
+    @com.fasterxml.jackson.annotation.JsonIgnore
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "producto_id", insertable = false, updatable = false,
+            foreignKey = @ForeignKey(name = "fk_ajustes_inventario_producto"))
+    private Producto producto;
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
     private Tipo tipo;

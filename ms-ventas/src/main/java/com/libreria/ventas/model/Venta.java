@@ -8,7 +8,11 @@ import java.util.ArrayList;
 import java.util.List;
 
 @Entity
-@Table(name = "ventas")
+// T68: índices para filtrar el historial por fecha y por serie/número de comprobante.
+@Table(name = "ventas", indexes = {
+        @Index(name = "idx_ventas_fecha", columnList = "fecha"),
+        @Index(name = "idx_ventas_serie_numero", columnList = "serie, numero")
+})
 public class Venta {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -43,10 +47,6 @@ public class Venta {
     @Column(nullable = false, length = 20)
     private EstadoVenta estado;
 
-    @OneToMany(mappedBy = "venta", cascade = CascadeType.ALL, orphanRemoval = true)
-    @OrderBy("id ASC")
-    private List<VentaDetalle> detalles = new ArrayList<>();
-
     @Column(name = "estado_pago", nullable = false, columnDefinition = "varchar(30) default 'PENDIENTE'")
     private String estadoPago = "PENDIENTE";
     public String getEstadoPago() { return estadoPago; }
@@ -60,6 +60,27 @@ public class Venta {
     private MetodoPago metodoPago;
     public MetodoPago getMetodoPago() { return metodoPago; }
     public void setMetodoPago(MetodoPago value) { metodoPago = value; }
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "estado_sunat", length = 30)
+    private EstadoSunat estadoSunat;
+
+    @Column(name = "idempotency_key", length = 100, unique = true)
+    private String idempotencyKey;
+
+    @Column(name = "codigo_respuesta_sunat", length = 30)
+    private String codigoRespuestaSunat;
+
+    @Column(name = "mensaje_respuesta_sunat", columnDefinition = "TEXT")
+    private String mensajeRespuestaSunat;
+
+    @Column(name = "fecha_respuesta_sunat")
+    private LocalDateTime fechaRespuestaSunat;
+
+    @OneToMany(mappedBy = "venta", cascade = CascadeType.ALL, orphanRemoval = true)
+    @OrderBy("id ASC")
+    private List<VentaDetalle> detalles = new ArrayList<>();
+
     public Venta() {}
 
     public void agregarDetalle(VentaDetalle detalle) {
@@ -82,8 +103,17 @@ public class Venta {
     public void setFechaZona(String zone) { fechaZona=zone; }
     public java.time.OffsetDateTime getFecha() { return PeruTime.fromStored(fecha,fechaZona); }
     public void setFecha(LocalDateTime fecha) { this.fecha = fecha; }
-    public BigDecimal getBaseImponible() { return total == null ? BigDecimal.ZERO : total.divide(new BigDecimal("1.18"), 2, java.math.RoundingMode.HALF_UP); }
-    public BigDecimal getIgv() { return total == null ? BigDecimal.ZERO : total.subtract(getBaseImponible()); }
+    public BigDecimal getBaseImponible() { return total == null ? BigDecimal.ZERO : total.subtract(getIgv()); }
+    public BigDecimal getIgv() {
+        if (total == null) return BigDecimal.ZERO;
+        // Historical sales without classification retain the previous estimate.
+        if (detalles.isEmpty() || detalles.stream().anyMatch(d -> d.getAfectacionIgv() == null)) {
+            return total.subtract(total.divide(new BigDecimal("1.18"), 2, java.math.RoundingMode.HALF_UP));
+        }
+        return detalles.stream().filter(d -> "GRAVADO".equals(d.getAfectacionIgv()))
+                .map(d -> d.getSubtotal().subtract(d.getSubtotal().divide(new BigDecimal("1.18"), 2, java.math.RoundingMode.HALF_UP)))
+                .reduce(BigDecimal.ZERO.setScale(2), BigDecimal::add);
+    }
     public BigDecimal getTotal() { return total; }
     public void setTotal(BigDecimal total) { this.total = total; }
     public TipoComprobante getTipoComprobante() { return tipoComprobante; }
@@ -98,5 +128,44 @@ public class Venta {
     public void setDetalles(List<VentaDetalle> detalles) {
         this.detalles.clear();
         if (detalles != null) detalles.forEach(this::agregarDetalle);
+    }
+    public EstadoSunat getEstadoSunat() {
+        return estadoSunat;
+    }
+
+    public void setEstadoSunat(EstadoSunat estadoSunat) {
+        this.estadoSunat = estadoSunat;
+    }
+
+    public String getIdempotencyKey() {
+        return idempotencyKey;
+    }
+
+    public void setIdempotencyKey(String idempotencyKey) {
+        this.idempotencyKey = idempotencyKey;
+    }
+
+    public String getCodigoRespuestaSunat() {
+        return codigoRespuestaSunat;
+    }
+
+    public void setCodigoRespuestaSunat(String codigoRespuestaSunat) {
+        this.codigoRespuestaSunat = codigoRespuestaSunat;
+    }
+
+    public String getMensajeRespuestaSunat() {
+        return mensajeRespuestaSunat;
+    }
+
+    public void setMensajeRespuestaSunat(String mensajeRespuestaSunat) {
+        this.mensajeRespuestaSunat = mensajeRespuestaSunat;
+    }
+
+    public LocalDateTime getFechaRespuestaSunat() {
+        return fechaRespuestaSunat;
+    }
+
+    public void setFechaRespuestaSunat(LocalDateTime fechaRespuestaSunat) {
+        this.fechaRespuestaSunat = fechaRespuestaSunat;
     }
 }

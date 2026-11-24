@@ -46,3 +46,19 @@ nb-configuration.xml
 
 # Kilo (internal assistant config - do not commit)
 .kilo/
+
+# Local private files
+certificados/
+*.p12
+*.pfx
+*.key
+archivos-fiscales/
+backups/
+logs/
+*.bak
+.env.*
+!.env.example
+UBL-2.1.zip
+ubl-temporal/
+sunat-beta.wsdl
+/ms-ventas/src/test/java/com/libreria/ventas/as.java

@@ -23,6 +23,8 @@ public class FacturaXmlService {
 
     private static final String CAC_NS =
             "urn:oasis:names:specification:ubl:schema:xsd:CommonAggregateComponents-2";
+    private static final String EXT_NS =
+            "urn:oasis:names:specification:ubl:schema:xsd:CommonExtensionComponents-2";
 
     private static final BigDecimal FACTOR_IGV =
             new BigDecimal("1.18");
@@ -54,6 +56,15 @@ public class FacturaXmlService {
             xml.writeDefaultNamespace(INVOICE_NS);
             xml.writeNamespace("cbc", CBC_NS);
             xml.writeNamespace("cac", CAC_NS);
+            xml.writeNamespace("ext", EXT_NS);
+
+            xml.writeStartElement("ext", "UBLExtensions", EXT_NS);
+            xml.writeStartElement("ext", "UBLExtension", EXT_NS);
+            xml.writeStartElement("ext", "ExtensionContent", EXT_NS);
+
+            xml.writeEndElement();
+            xml.writeEndElement();
+            xml.writeEndElement();
 
             elemento(xml, "cbc", CBC_NS, "UBLVersionID", "2.1");
             elemento(xml, "cbc", CBC_NS, "CustomizationID", "2.0");
@@ -76,21 +87,43 @@ public class FacturaXmlService {
                     fechaEmision.toString()
             );
 
-            elemento(xml, "cbc", CBC_NS, "InvoiceTypeCode", "01");
+            xml.writeStartElement("cbc", "InvoiceTypeCode", CBC_NS);
+
+            xml.writeAttribute("listID", "0101");
+            xml.writeAttribute("listAgencyName", "PE:SUNAT");
+            xml.writeAttribute("listName", "Tipo de Documento");
+
+            xml.writeAttribute(
+                    "listURI",
+                    "urn:pe:gob:sunat:cpe:see:gem:catalogos:catalogo01"
+            );
+
+            xml.writeAttribute(
+                    "listSchemeURI",
+                    "urn:pe:gob:sunat:cpe:see:gem:catalogos:catalogo51"
+            );
+
+            xml.writeAttribute("name", "Tipo de Operacion");
+
+            xml.writeCharacters(factura.tipoComprobante());
+
+            xml.writeEndElement();
             elemento(xml, "cbc", CBC_NS, "DocumentCurrencyCode", "PEN");
 
             escribirParte(
                     xml,
                     "AccountingSupplierParty",
                     factura.rucEmisor(),
-                    factura.razonSocialEmisor()
+                    factura.razonSocialEmisor(),
+                    "6"
             );
 
             escribirParte(
                     xml,
                     "AccountingCustomerParty",
                     factura.rucCliente(),
-                    factura.razonSocialCliente()
+                    factura.razonSocialCliente(),
+                    factura.tipoDocumentoCliente()
             );
 
             // 1. CALCULAR LOS TOTALES DE LA VENTA
@@ -128,6 +161,33 @@ public class FacturaXmlService {
                     case INAFECTO ->
                             totalInafecto = totalInafecto.add(resultado.base());
                 }
+            }
+
+            // FORMA DE PAGO DE LA FACTURA
+
+            if ("01".equals(factura.tipoComprobante())) {
+
+                xml.writeStartElement(
+                        "cac", "PaymentTerms", CAC_NS
+                );
+
+                elemento(
+                        xml,
+                        "cbc",
+                        CBC_NS,
+                        "ID",
+                        "FormaPago"
+                );
+
+                elemento(
+                        xml,
+                        "cbc",
+                        CBC_NS,
+                        "PaymentMeansID",
+                        "Contado"
+                );
+
+                xml.writeEndElement(); // PaymentTerms
             }
 
             // 2. IMPUESTOS GENERALES DEL COMPROBANTE
@@ -234,6 +294,35 @@ public class FacturaXmlService {
                         xml, "LineExtensionAmount", subtotalSinIgv
                 );
 
+// PRECIO UNITARIO DE VENTA CON IMPUESTOS
+
+                xml.writeStartElement(
+                        "cac", "PricingReference", CAC_NS
+                );
+
+                xml.writeStartElement(
+                        "cac", "AlternativeConditionPrice", CAC_NS
+                );
+
+                importe(
+                        xml,
+                        "PriceAmount",
+                        detalle.precioUnitario()
+                );
+
+                elemento(
+                        xml,
+                        "cbc",
+                        CBC_NS,
+                        "PriceTypeCode",
+                        "01"
+                );
+
+                xml.writeEndElement(); // AlternativeConditionPrice
+                xml.writeEndElement(); // PricingReference
+
+
+
                 // 5. IMPUESTO INDIVIDUAL DE LA LINEA
 
                 xml.writeStartElement(
@@ -261,7 +350,20 @@ public class FacturaXmlService {
                 );
 
                 elemento(
-                        xml, "cbc", CBC_NS, "ID",
+                        xml,
+                        "cbc",
+                        CBC_NS,
+                        "Percent",
+                        detalle.afectacionIgv() == TipoAfectacionIgv.GRAVADO
+                                ? "18.00"
+                                : "0.00"
+                );
+
+                elemento(
+                        xml,
+                        "cbc",
+                        CBC_NS,
+                        "TaxExemptionReasonCode",
                         detalle.afectacionIgv().getCodigoSunat()
                 );
 
@@ -403,35 +505,70 @@ public class FacturaXmlService {
             XMLStreamWriter xml,
             String tipo,
             String ruc,
-            String razonSocial
+            String razonSocial,
+            String tipoDocumento
     ) throws XMLStreamException {
 
         xml.writeStartElement("cac", tipo, CAC_NS);
         xml.writeStartElement("cac", "Party", CAC_NS);
 
-        xml.writeStartElement(
-                "cac", "PartyIdentification", CAC_NS
-        );
+        // Identificacion del contribuyente
+        xml.writeStartElement("cac", "PartyIdentification", CAC_NS);
 
         xml.writeStartElement("cbc", "ID", CBC_NS);
-        xml.writeAttribute("schemeID", "6");
+        xml.writeAttribute("schemeID", tipoDocumento);
         xml.writeCharacters(ruc);
         xml.writeEndElement();
 
         xml.writeEndElement(); // PartyIdentification
 
-        xml.writeStartElement(
-                "cac", "PartyName", CAC_NS
-        );
+        // Nombre comercial
+        xml.writeStartElement("cac", "PartyName", CAC_NS);
 
         elemento(
-                xml, "cbc", CBC_NS, "Name", razonSocial
+                xml,
+                "cbc",
+                CBC_NS,
+                "Name",
+                razonSocial
         );
 
         xml.writeEndElement(); // PartyName
+
+        // Razon social requerida por SUNAT
+        xml.writeStartElement("cac", "PartyLegalEntity", CAC_NS);
+
+        elemento(
+                xml,
+                "cbc",
+                CBC_NS,
+                "RegistrationName",
+                razonSocial
+        );
+
+        // Codigo de establecimiento del emisor
+        if ("AccountingSupplierParty".equals(tipo)) {
+
+            xml.writeStartElement(
+                    "cac", "RegistrationAddress", CAC_NS
+            );
+
+            elemento(
+                    xml,
+                    "cbc",
+                    CBC_NS,
+                    "AddressTypeCode",
+                    "0000"
+            );
+
+            xml.writeEndElement(); // RegistrationAddress
+        }
+
+        xml.writeEndElement(); // PartyLegalEntity
         xml.writeEndElement(); // Party
-        xml.writeEndElement(); // AccountingSupplierParty/CustomerParty
+        xml.writeEndElement(); // AccountingParty
     }
+
 
     private void importe(
             XMLStreamWriter xml,
