@@ -19,8 +19,12 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import com.libreria.producto.dto.AfectacionIgvRequest;
-
+import com.libreria.producto.dto.StockIdempotenteRequest;
+import com.libreria.producto.service.InventarioIdempotenteService;
 import java.util.List;
+import com.libreria.producto.model.InventarioOperacion;
+import com.libreria.producto.repository.InventarioOperacionRepository;
+import com.libreria.producto.model.TipoInventarioOperacion;
 
 @RestController
 @RequestMapping("/productos")
@@ -28,12 +32,67 @@ import java.util.List;
 public class ProductoController {
 
     private final ProductoService service;
-
     private final ImportacionProductos importacion;
+    private final InventarioIdempotenteService inventarioIdempotenteService;
+    private final InventarioOperacionRepository inventarioOperacionRepository;
 
-    public ProductoController(ProductoService service, ImportacionProductos importacion) {
+    public ProductoController(
+            ProductoService service,
+            ImportacionProductos importacion,
+            InventarioIdempotenteService inventarioIdempotenteService,
+            InventarioOperacionRepository inventarioOperacionRepository) {
+
         this.service = service;
         this.importacion = importacion;
+        this.inventarioIdempotenteService = inventarioIdempotenteService;
+        this.inventarioOperacionRepository = inventarioOperacionRepository;
+    }
+
+    @GetMapping("/inventario/operaciones/{operationKey}/reposicion")
+    public InventarioOperacion consultarReposicionDeDescuento(
+            @PathVariable String operationKey) {
+
+        if (operationKey == null
+                || operationKey.isBlank()
+                || operationKey.length() > 150) {
+
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST,
+                    "Clave de descuento inválida"
+            );
+        }
+
+        return inventarioOperacionRepository
+                .findByTipoAndOperacionOrigenKey(
+                        TipoInventarioOperacion.REPOSICION,
+                        operationKey
+                )
+                .orElseThrow(() -> new ResponseStatusException(
+                        HttpStatus.NOT_FOUND,
+                        "No se encontró reposición para este descuento"
+                ));
+    }
+
+    @GetMapping("/inventario/operaciones/{operationKey}")
+    public InventarioOperacion consultarOperacionInventario(
+            @PathVariable String operationKey) {
+
+        if (operationKey == null
+                || operationKey.isBlank()
+                || operationKey.length() > 150) {
+
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST,
+                    "Clave de operación inválida"
+            );
+        }
+
+        return inventarioOperacionRepository
+                .findByOperationKey(operationKey)
+                .orElseThrow(() -> new ResponseStatusException(
+                        HttpStatus.NOT_FOUND,
+                        "Operación de inventario no encontrada"
+                ));
     }
 
     @GetMapping
@@ -66,6 +125,33 @@ public class ProductoController {
     @Operation(summary = "Descontar stock de forma segura")
     public Producto descontar(@PathVariable Long id, @Valid @RequestBody StockRequest request) {
         return service.descontarStock(id, request.getCantidad());
+    }
+
+    @PostMapping("/{id}/stock/descontar-idempotente")
+    @Operation(summary = "Descontar stock una sola vez por clave de operación")
+    public Producto descontarIdempotente(
+            @PathVariable Long id,
+            @Valid @RequestBody StockIdempotenteRequest request) {
+
+        return inventarioIdempotenteService.descontar(
+                id,
+                request.getCantidad(),
+                request.getOperationKey()
+        );
+    }
+
+    @PostMapping("/{id}/stock/reponer-idempotente")
+    @Operation(summary = "Reponer stock una sola vez por clave de operación")
+    public Producto reponerIdempotente(
+            @PathVariable Long id,
+            @Valid @RequestBody StockIdempotenteRequest request) {
+
+        return inventarioIdempotenteService.reponer(
+                id,
+                request.getCantidad(),
+                request.getOperationKey(),
+                request.getOperacionOrigenKey()
+        );
     }
 
     @PostMapping("/{id}/stock/reponer")
