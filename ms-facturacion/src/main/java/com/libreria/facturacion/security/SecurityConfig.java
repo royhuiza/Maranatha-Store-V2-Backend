@@ -74,7 +74,7 @@ public class SecurityConfig {
                         .requestMatchers(
                                 HttpMethod.GET,
                                 "/api/facturacion/ruc/**"
-                        ).hasAnyRole("ADMIN", "USER")
+                        ).hasAnyRole("ADMIN", "VENDEDOR")
 
                         .requestMatchers(
                                 "/api/facturacion/**"

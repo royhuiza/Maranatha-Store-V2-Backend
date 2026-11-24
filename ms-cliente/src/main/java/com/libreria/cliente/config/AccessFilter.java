@@ -29,7 +29,7 @@ public class AccessFilter extends OncePerRequestFilter {
      if(header==null || !header.startsWith("Bearer "))throw new IllegalArgumentException();
      var claims=Jwts.parserBuilder().setSigningKey(key).build().parseClaimsJws(header.substring(7)).getBody();
      role=claims.get("role",String.class);
-     if(claims.getSubject()==null || claims.getExpiration()==null || !("ROLE_ADMIN".equals(role)||"ROLE_USER".equals(role)))throw new IllegalArgumentException();
+     if(claims.getSubject()==null || claims.getExpiration()==null || !("ROLE_ADMIN".equals(role)||"ROLE_VENDEDOR".equals(role)))throw new IllegalArgumentException();
    }catch(Exception e){deny(res,401,"Token requerido o inválido");return;}
    boolean adminOnly=method.equals("DELETE");
    if(adminOnly && !"ROLE_ADMIN".equals(role)){deny(res,403,"Operación reservada al administrador");return;}

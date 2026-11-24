@@ -15,6 +15,7 @@ public class UsuarioDTO {
     @NotBlank(message = "El correo es obligatorio")
     @Email(message = "El correo no es válido")
     private String email;
+    @jakarta.validation.constraints.NotNull(message = "El rol es obligatorio")
     private Rol rol;
 
     public String getUsername() { return username; }

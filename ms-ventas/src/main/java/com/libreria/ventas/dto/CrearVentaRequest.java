@@ -16,6 +16,9 @@ public class CrearVentaRequest {
     public String getDocumento() { return documento; }
     public void setDocumento(String documento) { this.documento = documento; }
 
+    private String compradorNombre;
+    public String getCompradorNombre() { return compradorNombre; }
+    public void setCompradorNombre(String value) { compradorNombre = value; }
     private Long clienteId;
 
     @Size(max = 10)

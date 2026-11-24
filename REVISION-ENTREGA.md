@@ -1,0 +1,3 @@
+# Revisión parcial — no validada para producción
+
+Backend: roles ADMIN/VENDEDOR, retirada de /auth/register, venta con datos de comprador sin consulta a clientes, rechazo explícito de cobros digitales aún no integrados. Se conservan ms-cliente y ms-chat temporalmente: facturación depende de ms-cliente y existen rutas y Docker dependientes. Pendiente: retirar módulos y migrar consulta RUC, ms-pagos, caja, auditoría, costos, envío de comprobantes, permisos por propietario y pruebas. Ejecutar migración de rol previa copia de seguridad y revisión de restricciones. No compilado: Maven/dependencias no disponibles localmente. 

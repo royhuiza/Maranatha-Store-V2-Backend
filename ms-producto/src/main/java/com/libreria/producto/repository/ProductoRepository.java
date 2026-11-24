@@ -20,6 +20,7 @@ public interface ProductoRepository extends JpaRepository<Producto, Long> {
     List<Producto> findStockBajo();
 
     boolean existsByNombreIgnoreCaseAndIdNot(String nombre, Long id);
+    List<Producto> findByActivoTrueAndStockLessThanEqualOrderByStockAsc(int stock);
 
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("select p from Producto p where p.id = :id")
