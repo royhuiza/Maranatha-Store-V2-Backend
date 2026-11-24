@@ -59,7 +59,24 @@ public class ComprobanteBetaArchivadoController {
             if (!id.equals(texto(resp,CBC,"ReferenceID")) || !id.equals(texto(unico(dr,CAC,"DocumentReference"),CBC,"ID")) || !"0".equals(codigo)) throw new IllegalArgumentException();
             if (!RUC.equals(texto(unico(unico(app,CAC,"ReceiverParty"),CAC,"PartyIdentification"),CBC,"ID"))) throw new IllegalArgumentException();
             if (!"20131312955".equals(texto(unico(unico(app,CAC,"SenderParty"),CAC,"PartyIdentification"),CBC,"ID"))) throw new IllegalArgumentException();
-            return new Vista("BETA",false,id,"ACEPTADO_BETA",codigo,datos.igv(),datos.total(),campos[6],datos.contenidoQr());
+            Element invoice = doc.getDocumentElement();
+            Element cliente = unico(unico(invoice,CAC,"AccountingCustomerParty"),CAC,"Party");
+            String nombreCliente = texto(unico(cliente,CAC,"PartyLegalEntity"),CBC,"RegistrationName");
+            String subtotal = texto(unico(invoice,CAC,"LegalMonetaryTotal"),CBC,"LineExtensionAmount");
+            var detalle = new java.util.ArrayList<Linea>();
+            for (var n=invoice.getFirstChild(); n!=null; n=n.getNextSibling()) {
+                if (n instanceof Element e && CAC.equals(e.getNamespaceURI()) && "InvoiceLine".equals(e.getLocalName())) {
+                    String descripcion = texto(unico(e,CAC,"Item"),CBC,"Description");
+                    String cantidad = texto(e,CBC,"InvoicedQuantity");
+                    String precio = texto(unico(unico(e,CAC,"PricingReference"),CAC,"AlternativeConditionPrice"),CBC,"PriceAmount");
+                    String neto = texto(e,CBC,"LineExtensionAmount");
+                    String impuesto = texto(unico(e,CAC,"TaxTotal"),CBC,"TaxAmount");
+                    String importe = new java.math.BigDecimal(neto).add(new java.math.BigDecimal(impuesto)).toPlainString();
+                    detalle.add(new Linea(descripcion,cantidad,precio,importe));
+                }
+            }
+            if (detalle.isEmpty()) throw new IllegalArgumentException();
+            return new Vista("BETA",false,id,"ACEPTADO_BETA",codigo,datos.igv(),datos.total(),campos[6],datos.contenidoQr(),subtotal,nombreCliente,java.util.List.copyOf(detalle));
         } catch (Exception e) {
             throw new ResponseStatusException(HttpStatus.CONFLICT,"Evidencia Beta inconsistente o no verificable");
         }
@@ -101,5 +118,6 @@ public class ComprobanteBetaArchivadoController {
         ctx.setURIDereferencer((ref,c)-> { if(!"".equals(ref.getURI())) throw new javax.xml.crypto.URIReferenceException("Referencia externa"); return original.dereference(ref,c); });
         if(!firma.validate(ctx)) throw new IllegalArgumentException();
     }
-    public record Vista(String ambiente,boolean validezFiscal,String comprobante,String estadoSunat,String codigo,String igv,String total,String fecha,String contenidoQr) {}
+    public record Vista(String ambiente,boolean validezFiscal,String comprobante,String estadoSunat,String codigo,String igv,String total,String fecha,String contenidoQr,String subtotal,String cliente,java.util.List<Linea> detalles) {}
+    public record Linea(String descripcion,String cantidad,String precioUnitario,String importe) {}
 }
