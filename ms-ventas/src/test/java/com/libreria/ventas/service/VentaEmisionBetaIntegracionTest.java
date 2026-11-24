@@ -34,13 +34,14 @@ import static org.mockito.Mockito.*;
 })
 @ActiveProfiles("test")
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
-@Import({VentaFiscalService.class, VentaEmisionBetaService.class})
+@Import({VentaFiscalService.class, VentaEmisionBetaService.class, VentaPersistenciaService.class, VentaLaboratorioService.class})
 @Transactional(propagation = Propagation.NOT_SUPPORTED)
 class VentaEmisionBetaIntegracionTest {
     @Autowired VentaRepository repository;
     @Autowired VentaFiscalService fiscal;
     @Autowired VentaEmisionBetaService servicio;
     @Autowired JdbcTemplate jdbc;
+    @Autowired VentaLaboratorioService laboratorio;
     @MockBean FacturacionClient client;
 
     private Venta crear(String ruc) {
@@ -99,6 +100,46 @@ class VentaEmisionBetaIntegracionTest {
             verify(client, times(1)).emitirBeta(any());
             System.out.println("OK: ERROR CONTROLADO SIN REENVIO");
         } finally { repository.deleteById(v.getId()); }
+    }
+
+    @Test
+    void registroAutomaticoSinDuplicar() {
+        UUID operacion = UUID.randomUUID();
+        String clave = "DEMO-FISCAL-" + operacion;
+        try {
+            when(client.emitirBeta(any())).thenAnswer(inv -> {
+                FacturacionClient.SolicitudEmision s = inv.getArgument(0);
+                assertEquals("F9B1", s.serie());
+                assertEquals("01", s.tipoComprobante());
+                return new FacturacionClient.ResultadoEmision("BETA", "ACEPTADA_BETA", "0",
+                        "SIMULACION LOCAL - NO SUNAT", s.serie(), s.numero());
+            });
+            Venta primera = laboratorio.registrarYEmitir(operacion, "00000000000");
+            Venta repetida = laboratorio.registrarYEmitir(operacion, "00000000000");
+            assertEquals(primera.getId(), repetida.getId());
+            assertEquals(EstadoSunat.ACEPTADO_BETA, repetida.getEstadoSunat());
+            assertFalse(repetida.isValidadoSunat());
+            verify(client, times(1)).emitirBeta(any());
+        } finally {
+            repository.findByIdempotencyKey(clave).ifPresent(v -> repository.deleteById(v.getId()));
+        }
+    }
+
+    @Test
+    void registroAutomaticoConErrorNoReenvia() {
+        UUID operacion = UUID.randomUUID();
+        String clave = "DEMO-FISCAL-" + operacion;
+        try {
+            when(client.emitirBeta(any())).thenThrow(new IllegalStateException("Fallo simulado"));
+            Venta primera = laboratorio.registrarYEmitir(operacion, "00000000000");
+            Venta repetida = laboratorio.registrarYEmitir(operacion, "00000000000");
+            assertEquals(primera.getId(), repetida.getId());
+            assertEquals(EstadoSunat.ERROR_COMUNICACION, repetida.getEstadoSunat());
+            assertFalse(repetida.isValidadoSunat());
+            verify(client, times(1)).emitirBeta(any());
+        } finally {
+            repository.findByIdempotencyKey(clave).ifPresent(v -> repository.deleteById(v.getId()));
+        }
     }
 
     @Test
