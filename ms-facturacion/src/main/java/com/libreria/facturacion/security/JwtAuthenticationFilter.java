@@ -5,12 +5,14 @@ import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+
 import org.springframework.http.HttpHeaders;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -63,7 +65,7 @@ public class JwtAuthenticationFilter
 
                 boolean rolValido =
                         "ROLE_ADMIN".equals(role)
-                                || "ROLE_USER".equals(role);
+                                || "ROLE_VENDEDOR".equals(role);
 
                 log.info(
                         "JWT: firma valida, rol reconocido: {}, admin: {}",

@@ -1,4 +1,3 @@
-
 package com.libreria.facturacion.service;
 
 import com.libreria.facturacion.dto.FacturaPruebaRequest;
@@ -117,7 +116,7 @@ class DocumentoTributarioValidationServiceTest {
         );
 
         assertEquals(
-                "El RUC del cliente no tiene un formato valido",
+                "El RUC del cliente no es válido",
                 error.getMessage()
         );
     }
@@ -137,9 +136,8 @@ class DocumentoTributarioValidationServiceTest {
         );
 
         assertEquals(
-                "El RUC del emisor no tiene un formato valido",
+                "El RUC del emisor no es válido",
                 error.getMessage()
         );
     }
-
 }

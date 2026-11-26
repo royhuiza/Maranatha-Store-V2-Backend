@@ -24,6 +24,18 @@ import java.util.List;
 public class VentaController {
 
     private final VentaService ventaService;
+    @org.springframework.beans.factory.annotation.Value("${maranatha.demo.checkout.enabled:false}")
+    private boolean checkoutDemo;
+    @org.springframework.beans.factory.annotation.Value("${maranatha.demo.integrado.enabled:false}")
+    private boolean demoIntegrado;
+    @org.springframework.beans.factory.annotation.Autowired
+    private org.springframework.beans.factory.ObjectProvider<com.libreria.ventas.service.CheckoutDemoIntegrado> checkoutIntegrado;
+    @org.springframework.beans.factory.annotation.Autowired
+    private com.libreria.ventas.service.AccesoFiscalService accesoFiscal;
+    @org.springframework.beans.factory.annotation.Value("${maranatha.laboratorio.aislado:false}")
+    private boolean laboratorioAislado;
+    @org.springframework.beans.factory.annotation.Autowired
+    private org.springframework.beans.factory.ObjectProvider<com.libreria.ventas.service.VentaLaboratorioService> servicioDemo;
     private final ClienteClient clienteClient;
     private final ProductoClient productoClient;
     private final HistorialVentaService historialService;
@@ -38,7 +50,12 @@ public class VentaController {
 
     @GetMapping
     @Operation(summary = "Listar ventas")
-    public List<Venta> listarVentas() { return ventaService.listarVentas(); }
+    public List<Venta> listarVentas(@RequestHeader(value="Authorization",required=false) String token) {
+        if(demoIntegrado)accesoFiscal.exigirAdmin(token);
+        var lista=ventaService.listarVentas();
+        if(demoIntegrado)checkoutIntegrado.getObject().adjuntarCompradores(lista);
+        return lista;
+    }
 
     @GetMapping("/historial")
     @Operation(summary = "Historial filtrado por fechas (aaaa-mm-dd) y número de comprobante, paginado")
@@ -46,23 +63,48 @@ public class VentaController {
                                      @RequestParam(required = false) String hasta,
                                      @RequestParam(required = false) String numero,
                                      @RequestParam(defaultValue = "0") int pagina,
-                                     @RequestParam(defaultValue = "10") int tamano) {
-        return historialService.consultar(desde, hasta, numero, pagina, tamano);
+                                     @RequestParam(defaultValue = "10") int tamano,
+                                     @RequestHeader(value="Authorization",required=false) String token) {
+        if(demoIntegrado)accesoFiscal.exigirAdmin(token);
+        var paginaVentas=historialService.consultar(desde, hasta, numero, pagina, tamano);
+        if(demoIntegrado)checkoutIntegrado.getObject().adjuntarCompradores(paginaVentas.contenido());
+        return paginaVentas;
     }
 
     @GetMapping("/{id}")
     @Operation(summary = "Obtener una venta y su comprobante")
-    public Venta obtenerVenta(@PathVariable Long id) { return ventaService.obtenerVenta(id); }
+    public Venta obtenerVenta(@PathVariable Long id,@RequestHeader(value="Authorization",required=false) String token) {
+        if(demoIntegrado)accesoFiscal.exigirAdmin(token);
+        var v=ventaService.obtenerVenta(id);
+        return demoIntegrado?checkoutIntegrado.getObject().adjuntarComprador(v):v;
+    }
 
     @PostMapping
     @Operation(summary = "Registrar venta, calcular total y descontar stock")
-    public ResponseEntity<Venta> crearVenta(@Valid @RequestBody CrearVentaRequest request) {
+    public ResponseEntity<Venta> crearVenta(@Valid @RequestBody CrearVentaRequest request, @RequestHeader(value="Authorization",required=false) String token) {
+        if (demoIntegrado) {
+            if(!laboratorioAislado||checkoutIntegrado.getIfAvailable()==null) throw new org.springframework.web.server.ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE,"Instancia demo no aislada");
+            accesoFiscal.exigirAdmin(token);
+            Venta v=checkoutIntegrado.getObject().confirmar(request);
+            boolean completo=v.getEstadoSunat()==com.libreria.ventas.model.EstadoSunat.ACEPTADO_BETA || v.getEstadoSunat()==com.libreria.ventas.model.EstadoSunat.NO_APLICA;
+            return ResponseEntity.status(completo?HttpStatus.CREATED:HttpStatus.ACCEPTED).body(v);
+        }
+        if (checkoutDemo) {
+            if (!laboratorioAislado || servicioDemo.getIfAvailable() == null)
+                throw new org.springframework.web.server.ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE,"Checkout Beta exige instancia aislada");
+            Venta v = servicioDemo.getObject().confirmarDemo(request);
+            // HTTP 202 significa registrada, pero no aceptada: nunca confirmar de nuevo con otra clave.
+            return ResponseEntity.status(v.getEstadoSunat() == com.libreria.ventas.model.EstadoSunat.ACEPTADO_BETA ? HttpStatus.CREATED : HttpStatus.ACCEPTED).body(v);
+        }
         return ResponseEntity.status(HttpStatus.CREATED).body(ventaService.crearVenta(request));
     }
 
     @PutMapping("/{id}/anular")
     @Operation(summary = "Anular venta y reponer stock")
-    public Venta anularVenta(@PathVariable Long id) { return ventaService.anularVenta(id); }
+    public Venta anularVenta(@PathVariable Long id) {
+        if(demoIntegrado){if(!laboratorioAislado||checkoutIntegrado.getIfAvailable()==null)throw new org.springframework.web.server.ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE,"Demo no aislada");return checkoutIntegrado.getObject().adjuntarComprador(checkoutIntegrado.getObject().anular(id));}
+        return ventaService.anularVenta(id);
+    }
 
     @DeleteMapping("/{id}")
     @ResponseStatus(HttpStatus.NO_CONTENT)

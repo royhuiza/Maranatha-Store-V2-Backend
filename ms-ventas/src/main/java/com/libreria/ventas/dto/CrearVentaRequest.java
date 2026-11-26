@@ -1,4 +1,3 @@
-
 package com.libreria.ventas.dto;
 
 import com.libreria.ventas.model.MetodoPago;

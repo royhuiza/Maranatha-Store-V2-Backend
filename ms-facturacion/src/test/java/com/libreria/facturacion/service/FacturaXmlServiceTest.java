@@ -195,7 +195,11 @@ class FacturaXmlServiceTest {
 
             assertEquals(
                     codigos[i],
-                    textoDirecto(taxCategory, CBC_NS, "ID")
+                    textoDirecto(
+                            taxCategory,
+                            CBC_NS,
+                            "TaxExemptionReasonCode"
+                    )
             );
 
             assertEquals(
@@ -458,5 +462,4 @@ class FacturaXmlServiceTest {
                 texto(documento.getDocumentElement(), "IssueDate")
         );
     }
-
 }
