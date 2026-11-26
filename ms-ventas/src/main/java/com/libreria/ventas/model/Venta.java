@@ -81,6 +81,15 @@ public class Venta {
     @OrderBy("id ASC")
     private List<VentaDetalle> detalles = new ArrayList<>();
 
+    // Datos locales de demostracion; nunca se persisten en la entidad fiscal.
+    @Transient private String compradorLocalNombre;
+    @Transient private String compradorLocalDocumento;
+    public String getCompradorLocalNombre() { return compradorLocalNombre; }
+    public String getCompradorLocalDocumento() { return compradorLocalDocumento; }
+    public void setCompradorLocal(String nombre, String documento) {
+        compradorLocalNombre=nombre; compradorLocalDocumento=documento;
+    }
+
     public Venta() {}
 
     public void agregarDetalle(VentaDetalle detalle) {

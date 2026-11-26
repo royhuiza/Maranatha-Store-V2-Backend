@@ -29,6 +29,8 @@ public class EstadoComprobanteService {
             case ERROR_COMUNICACION -> "Error de comunicacion";
             case REQUIERE_REVISION -> "Requiere revision";
         };
+        if(v.getEstado()==EstadoVenta.ANULADA) etiqueta="Anulado interno";
+        else if(e==EstadoSunat.ACEPTADO_BETA) etiqueta="Activo · Beta";
         String ambiente=codigo.endsWith("_BETA")?"BETA":"NO_CONFIRMADO";
         return new Vista(v.getId(),v.getSerie(),v.getNumero(),codigo,etiqueta,ambiente,false,v.getCodigoRespuestaSunat(),v.getFechaRespuestaSunat(),v.getEstado());
     }

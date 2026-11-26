@@ -14,7 +14,7 @@ class ComprobanteBetaArchivadoTest {
  }
  @Test void evidenciaCoincidente() throws Exception {
   preparar(); var v=new ComprobanteBetaArchivadoController(new QrFiscalService(),dir.toString()).consultar("00000010");
-  assertEquals("ACEPTADO_BETA",v.estadoSunat()); assertFalse(v.validezFiscal()); assertEquals("0",v.codigo()); assertEquals("11.80",v.total());
+  assertEquals("ACEPTADO_BETA",v.estadoSunat()); assertFalse(v.validezFiscal()); assertEquals("0",v.codigo()); assertEquals("11.80",v.total()); assertEquals("10.00",v.subtotal()); assertEquals("EMPRESA FICTICIA DE PRUEBA",v.cliente()); assertEquals(1,v.detalles().size()); assertEquals("Producto de prueba",v.detalles().get(0).descripcion()); assertEquals("11.80",v.detalles().get(0).importe());
   assertEquals("20123456786|01|F9B1|00000010|1.80|11.80|2026-11-24|6|20123456786|kcG6BTC+Z3/K9TU2M0/qQtSig/KNXnRw2EM91Wy6PFk=",v.contenidoQr());
  }
  @Test void rechazoCdrDistinto() throws Exception {

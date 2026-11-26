@@ -36,9 +36,16 @@ public class ComprobanteBetaArchivadoController {
 
     @GetMapping("/{numero}")
     public Vista consultar(@PathVariable("numero") String numero) {
+        return consultarSerie("F9B1", numero);
+    }
+
+    @GetMapping("/{serie}/{numero}")
+    public Vista consultarSerie(@PathVariable("serie") String serie, @PathVariable("numero") String numero) {
+        if (!java.util.Set.of("F9B1", "B9B1").contains(serie)) throw new ResponseStatusException(HttpStatus.BAD_REQUEST,"Serie Beta no admitida");
         if (!numero.matches("[0-9]{8}")) throw new ResponseStatusException(HttpStatus.BAD_REQUEST,"Correlativo de ocho digitos requerido");
-        String id = "F9B1-" + numero;
-        Path carpeta = raiz.resolve("beta").resolve(RUC + "-01-" + id);
+        String tipo = "B9B1".equals(serie) ? "03" : "01";
+        String id = serie + "-" + numero;
+        Path carpeta = raiz.resolve("beta").resolve(RUC + "-" + tipo + "-" + id);
         Path factura = carpeta.resolve("factura.xml"), cdr = carpeta.resolve("cdr.xml");
         if (!Files.isRegularFile(factura) || !Files.isRegularFile(cdr))
             throw new ResponseStatusException(HttpStatus.NOT_FOUND,"Evidencia Beta no disponible");
@@ -49,7 +56,7 @@ public class ComprobanteBetaArchivadoController {
             validarFirmaLocal(doc);
             QrFiscalService.DatosQr datos = qr.extraer(xml);
             String[] campos = datos.contenidoQr().split("\\|", -1);
-            if (campos.length != 10 || !RUC.equals(campos[0]) || !RUC.equals(campos[8]) || !"01".equals(campos[1]) || !id.equals(datos.comprobante())) throw new IllegalArgumentException();
+            if (campos.length != 10 || !RUC.equals(campos[0]) || !RUC.equals(campos[8]) || !tipo.equals(campos[1]) || !"6".equals(campos[7]) || !id.equals(datos.comprobante())) throw new IllegalArgumentException();
             Document respuesta = parse(leer(cdr));
             Element app = respuesta.getDocumentElement();
             if (!"ApplicationResponse".equals(app.getLocalName()) || !"urn:oasis:names:specification:ubl:schema:xsd:ApplicationResponse-2".equals(app.getNamespaceURI())) throw new IllegalArgumentException();
@@ -59,7 +66,24 @@ public class ComprobanteBetaArchivadoController {
             if (!id.equals(texto(resp,CBC,"ReferenceID")) || !id.equals(texto(unico(dr,CAC,"DocumentReference"),CBC,"ID")) || !"0".equals(codigo)) throw new IllegalArgumentException();
             if (!RUC.equals(texto(unico(unico(app,CAC,"ReceiverParty"),CAC,"PartyIdentification"),CBC,"ID"))) throw new IllegalArgumentException();
             if (!"20131312955".equals(texto(unico(unico(app,CAC,"SenderParty"),CAC,"PartyIdentification"),CBC,"ID"))) throw new IllegalArgumentException();
-            return new Vista("BETA",false,id,"ACEPTADO_BETA",codigo,datos.igv(),datos.total(),campos[6],datos.contenidoQr());
+            Element invoice = doc.getDocumentElement();
+            Element cliente = unico(unico(invoice,CAC,"AccountingCustomerParty"),CAC,"Party");
+            String nombreCliente = texto(unico(cliente,CAC,"PartyLegalEntity"),CBC,"RegistrationName");
+            String subtotal = texto(unico(invoice,CAC,"LegalMonetaryTotal"),CBC,"LineExtensionAmount");
+            var detalle = new java.util.ArrayList<Linea>();
+            for (var n=invoice.getFirstChild(); n!=null; n=n.getNextSibling()) {
+                if (n instanceof Element e && CAC.equals(e.getNamespaceURI()) && "InvoiceLine".equals(e.getLocalName())) {
+                    String descripcion = texto(unico(e,CAC,"Item"),CBC,"Description");
+                    String cantidad = texto(e,CBC,"InvoicedQuantity");
+                    String precio = texto(unico(unico(e,CAC,"PricingReference"),CAC,"AlternativeConditionPrice"),CBC,"PriceAmount");
+                    String neto = texto(e,CBC,"LineExtensionAmount");
+                    String impuesto = texto(unico(e,CAC,"TaxTotal"),CBC,"TaxAmount");
+                    String importe = new java.math.BigDecimal(neto).add(new java.math.BigDecimal(impuesto)).toPlainString();
+                    detalle.add(new Linea(descripcion,cantidad,precio,importe));
+                }
+            }
+            if (detalle.isEmpty()) throw new IllegalArgumentException();
+            return new Vista("BETA",false,id,"ACEPTADO_BETA",codigo,datos.igv(),datos.total(),campos[6],datos.contenidoQr(),subtotal,nombreCliente,java.util.List.copyOf(detalle));
         } catch (Exception e) {
             throw new ResponseStatusException(HttpStatus.CONFLICT,"Evidencia Beta inconsistente o no verificable");
         }
@@ -101,5 +125,6 @@ public class ComprobanteBetaArchivadoController {
         ctx.setURIDereferencer((ref,c)-> { if(!"".equals(ref.getURI())) throw new javax.xml.crypto.URIReferenceException("Referencia externa"); return original.dereference(ref,c); });
         if(!firma.validate(ctx)) throw new IllegalArgumentException();
     }
-    public record Vista(String ambiente,boolean validezFiscal,String comprobante,String estadoSunat,String codigo,String igv,String total,String fecha,String contenidoQr) {}
+    public record Vista(String ambiente,boolean validezFiscal,String comprobante,String estadoSunat,String codigo,String igv,String total,String fecha,String contenidoQr,String subtotal,String cliente,java.util.List<Linea> detalles) {}
+    public record Linea(String descripcion,String cantidad,String precioUnitario,String importe) {}
 }
