@@ -36,9 +36,16 @@ public class ComprobanteBetaArchivadoController {
 
     @GetMapping("/{numero}")
     public Vista consultar(@PathVariable("numero") String numero) {
+        return consultarSerie("F9B1", numero);
+    }
+
+    @GetMapping("/{serie}/{numero}")
+    public Vista consultarSerie(@PathVariable("serie") String serie, @PathVariable("numero") String numero) {
+        if (!java.util.Set.of("F9B1", "B9B1").contains(serie)) throw new ResponseStatusException(HttpStatus.BAD_REQUEST,"Serie Beta no admitida");
         if (!numero.matches("[0-9]{8}")) throw new ResponseStatusException(HttpStatus.BAD_REQUEST,"Correlativo de ocho digitos requerido");
-        String id = "F9B1-" + numero;
-        Path carpeta = raiz.resolve("beta").resolve(RUC + "-01-" + id);
+        String tipo = "B9B1".equals(serie) ? "03" : "01";
+        String id = serie + "-" + numero;
+        Path carpeta = raiz.resolve("beta").resolve(RUC + "-" + tipo + "-" + id);
         Path factura = carpeta.resolve("factura.xml"), cdr = carpeta.resolve("cdr.xml");
         if (!Files.isRegularFile(factura) || !Files.isRegularFile(cdr))
             throw new ResponseStatusException(HttpStatus.NOT_FOUND,"Evidencia Beta no disponible");
@@ -49,7 +56,7 @@ public class ComprobanteBetaArchivadoController {
             validarFirmaLocal(doc);
             QrFiscalService.DatosQr datos = qr.extraer(xml);
             String[] campos = datos.contenidoQr().split("\\|", -1);
-            if (campos.length != 10 || !RUC.equals(campos[0]) || !RUC.equals(campos[8]) || !"01".equals(campos[1]) || !id.equals(datos.comprobante())) throw new IllegalArgumentException();
+            if (campos.length != 10 || !RUC.equals(campos[0]) || !RUC.equals(campos[8]) || !tipo.equals(campos[1]) || !"6".equals(campos[7]) || !id.equals(datos.comprobante())) throw new IllegalArgumentException();
             Document respuesta = parse(leer(cdr));
             Element app = respuesta.getDocumentElement();
             if (!"ApplicationResponse".equals(app.getLocalName()) || !"urn:oasis:names:specification:ubl:schema:xsd:ApplicationResponse-2".equals(app.getNamespaceURI())) throw new IllegalArgumentException();

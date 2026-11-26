@@ -39,33 +39,36 @@ public class VentaEmisionBetaService {
             throw new IllegalArgumentException("RUC de prueba requerido");
         }
         Venta venta = buscar(id);
-        if (venta.getTipoComprobante() != TipoComprobante.FACTURA
+        boolean boleta = venta.getTipoComprobante() == TipoComprobante.BOLETA;
+        if ((!boleta && venta.getTipoComprobante() != TipoComprobante.FACTURA)
                 || venta.getEstado() != EstadoVenta.EMITIDA
                 || venta.getIdempotencyKey() == null
                 || !venta.getIdempotencyKey().startsWith("DEMO-FISCAL-")
-                || !"F9B1".equals(venta.getSerie())
+                || !(boleta ? "B9B1" : "F9B1").equals(venta.getSerie())
                 || venta.getNumero() == null || !venta.getNumero().matches("[0-9]{1,8}")
                 || !"EMPRESA FICTICIA DE PRUEBA".equals(venta.getClienteNombre())
                 || !("RUC " + rucPrueba).equals(venta.getClienteDocumento())
-                || venta.getDetalles().size() != 1) {
+                || venta.getDetalles().isEmpty() || venta.getDetalles().size() > 50) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
                     "Solo se admiten facturas sinteticas del laboratorio");
         }
-        VentaDetalle d = venta.getDetalles().get(0);
-        if (!"Producto de prueba".equals(d.getProductoNombre())
-                || d.getCantidad() == null || d.getCantidad() != 1
-                || d.getPrecioUnitario() == null || d.getPrecioUnitario().signum() <= 0
-                || !"GRAVADO".equals(d.getAfectacionIgv())
-                || venta.getTotal().compareTo(d.getPrecioUnitario()) != 0) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
-                    "Detalle de laboratorio invalido");
+        var lineas = venta.getDetalles();
+        boolean legacy = !boleta && lineas.size()==1 && "Producto de prueba".equals(lineas.get(0).getProductoNombre())
+                && java.util.Objects.equals(lineas.get(0).getCantidad(),1)
+                && lineas.get(0).getPrecioUnitario()!=null && lineas.get(0).getPrecioUnitario().signum()>0
+                && "GRAVADO".equals(lineas.get(0).getAfectacionIgv());
+        boolean catalogo = lineas.stream().map(VentaDetalle::getProductoNombre).distinct().count()==lineas.size()
+                && lineas.stream().allMatch(d -> CatalogoBeta.valida(d.getProductoNombre(),d.getPrecioUnitario(),d.getCantidad(),d.getAfectacionIgv()));
+        if ((!legacy && !catalogo) || venta.getTotal()==null || venta.getTotal().compareTo(lineas.stream()
+                .map(d -> d.getPrecioUnitario().multiply(java.math.BigDecimal.valueOf(d.getCantidad())))
+                .reduce(java.math.BigDecimal.ZERO,java.math.BigDecimal::add))!=0) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,"Detalle de laboratorio invalido");
         }
         SolicitudEmision solicitud = new SolicitudEmision(
                 rucPrueba, "MARANATHA BETA - PRUEBA", rucPrueba,
                 venta.getClienteNombre(), venta.getSerie(), venta.getNumero(),
-                List.of(new Detalle(d.getProductoNombre(), d.getCantidad(),
-                        d.getPrecioUnitario(), d.getAfectacionIgv())),
-                "01", "6", null, venta.getFecha().toLocalDate());
+                lineas.stream().map(d -> new Detalle(d.getProductoNombre(),d.getCantidad(),d.getPrecioUnitario(),d.getAfectacionIgv())).toList(),
+                boleta ? "03" : "01", "6", null, venta.getFecha().toLocalDate());
 
         // La reserva se confirma en una transaccion independiente antes del HTTP.
         if (!fiscal.iniciarEmision(id)) return buscar(id);
@@ -89,8 +92,26 @@ public class VentaEmisionBetaService {
         return buscar(id);
     }
 
+    @jakarta.persistence.PersistenceUnit
+    private jakarta.persistence.EntityManagerFactory fiscalEmf;
+
     private Venta buscar(Long id) {
-        return repository.findOneById(id).orElseThrow(() ->
-                new ResponseStatusException(HttpStatus.NOT_FOUND, "Venta no encontrada"));
+        var em = fiscalEmf.createEntityManager();
+        try {
+            return em.createQuery(
+                "select distinct v from Venta v left join fetch v.detalles where v.id = :id",
+                Venta.class
+            )
+            .setParameter("id", id)
+            .setHint("jakarta.persistence.cache.retrieveMode",
+                jakarta.persistence.CacheRetrieveMode.BYPASS)
+            .getResultList()
+            .stream()
+            .findFirst()
+            .orElseThrow(() -> new ResponseStatusException(
+                HttpStatus.NOT_FOUND, "Venta no encontrada"));
+        } finally {
+            em.close();
+        }
     }
 }

@@ -23,6 +23,6 @@ public class EmisionInternaController {
             @Valid @RequestBody FacturaPruebaRequest factura
     ) {
 
-        return emisionController.emitirBeta(factura);
+        return emisionController.emitirInternaBeta(factura);
     }
 }

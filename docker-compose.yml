@@ -181,6 +181,7 @@ services:
       SUNAT_XSD_RUTA: /xsd/ubl21/maindoc/UBL-Invoice-2.1.xsd
       SUNAT_ARCHIVOS_DIRECTORIO: /archivos-fiscales
       FACTURACION_INTERNAL_TOKEN: ${FACTURACION_INTERNAL_TOKEN:-}
+      DECOLECTA_API_KEY: ${DECOLECTA_API_KEY:-}
     expose:
       - "8085"
     depends_on:
