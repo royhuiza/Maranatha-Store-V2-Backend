@@ -1,6 +1,7 @@
 package com.libreria.facturacion.service;
 
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.nio.file.Files;
@@ -9,6 +10,7 @@ import java.nio.charset.StandardCharsets;
 
 import static org.junit.jupiter.api.Assertions.*;
 
+@EnabledIfEnvironmentVariable(named = "MARANATHA_BETA_AUTORIZADO", matches = "SI")
 class SunatBetaEnvioTest {
 
     @Test

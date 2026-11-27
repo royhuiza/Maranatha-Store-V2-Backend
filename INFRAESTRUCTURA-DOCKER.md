@@ -110,7 +110,7 @@ que se está mostrando en ese momento.
 Para confirmar que la sesión quedó emparejada:
 
 ```powershell
-docker exec maranatha-whatsapp wget -qO- --header="apikey: maranatha_secret_key_2026" \
+docker exec maranatha-whatsapp wget -qO- --header="apikey: TU_CLAVE_EVOLUTION_API" \
   http://localhost:8080/instance/fetchInstances
 ```
 
