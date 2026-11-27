@@ -105,10 +105,73 @@
 
 ##  Inicio rápido
 
-### Opción A: IntelliJ IDEA (recomendado para desarrollo)
+### Opción A: Docker (recomendado, todo el stack)
+
+**Caso 1: No tienes el proyecto en tu PC (primera vez)**
 
 ```powershell
-# 1. Levantar PostgreSQL con Docker
+# 1. Clonar el repositorio
+git clone https://github.com/royhuiza/Maranatha-Store-V2-Backend.git
+cd Maranatha-Store-V2-Backend
+
+# 2. Asegurarte de estar en la rama principal y traer los últimos cambios
+git checkout master
+git pull origin master
+
+# 3. Copiar el archivo de variables de entorno (editar con tus claves reales)
+#    Copia .env.example a .env y completa DECOLECTA_API_KEY si la tienes
+Copy-Item .env.example .env
+
+# 4. Levantar todo el stack con Docker
+docker compose up -d --build
+
+# 5. Verificar que todos los contenedores estén arriba
+docker compose ps
+```
+
+**Caso 2: Ya tienes el proyecto en tu PC (actualizar)**
+
+```powershell
+# 1. Ir a la carpeta del proyecto
+cd Maranatha-Store-V2-Backend
+
+# 2. Cambiar a la rama principal y traer los últimos cambios
+git checkout master
+git pull origin master
+
+# 3. Copiar el archivo de variables de entorno (si aún no lo has hecho)
+#    Copia .env.example a .env y completa DECOLECTA_API_KEY si la tienes
+Copy-Item .env.example .env
+
+# 4. Reconstruir y levantar el stack con Docker
+docker compose up -d --build
+
+# 5. Verificar que todos los contenedores estén arriba
+docker compose ps
+```
+
+URLs importantes una vez levantado:
+
+- Gateway + Swagger: http://localhost:8080/swagger-ui.html
+- Login: `admin` / `admin123`
+- API directa por servicio: 8081 (auth), 8082 (productos), 8083 (clientes), 8084 (ventas)
+
+Para parar todo:
+
+```powershell
+docker compose down
+```
+
+Para borrar también las bases y comenzar de cero:
+
+```powershell
+docker compose down -v
+```
+
+### Opción B: IntelliJ IDEA (desarrollo local)
+
+```powershell
+# 1. Levantar solo PostgreSQL con Docker
 docker compose up -d maranatha-postgres
 
 # 2. Si las tablas están incompatibles, resetear una sola vez
@@ -128,25 +191,6 @@ O usar el script:
 
 ```powershell
 .\iniciar-backend.ps1
-```
-
-### Opción B: Docker (todo el stack)
-
-```powershell
-docker compose up -d --build
-docker compose ps
-```
-
-Para parar todo:
-
-```powershell
-docker compose down
-```
-
-Para borrar volúmenes y bases:
-
-```powershell
-docker compose down -v
 ```
 
 ---
