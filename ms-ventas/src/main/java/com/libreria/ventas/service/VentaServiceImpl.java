@@ -39,6 +39,12 @@ public class VentaServiceImpl implements VentaService {
     private final VentaPersistenciaService ventaPersistenciaService;
 
     @org.springframework.beans.factory.annotation.Autowired
+    private VentaFirmaAutomaticaService ventaFirmaAutomaticaService;
+
+    private static final org.slf4j.Logger log =
+            org.slf4j.LoggerFactory.getLogger(VentaServiceImpl.class);
+
+    @org.springframework.beans.factory.annotation.Autowired
     public VentaServiceImpl(
             VentaRepository ventaRepository,
             ClienteClient clienteClient,
@@ -146,6 +152,41 @@ public class VentaServiceImpl implements VentaService {
     }
 
 
+    private Venta intentarEmisionAutomatica(Venta venta) {
+
+        if (venta == null
+                || venta.getId() == null
+                || ventaFirmaAutomaticaService == null) {
+            return venta;
+        }
+
+        try {
+            if (ventaFirmaAutomaticaService.isBetaHabilitado()) {
+                ventaFirmaAutomaticaService.emitirVentaBeta(venta.getId());
+            } else {
+                ventaFirmaAutomaticaService.firmarVenta(venta.getId());
+            }
+        } catch (Exception ex) {
+            log.warn(
+                    "Emision automatica pendiente para venta {}. Error: {}",
+                    venta.getId(),
+                    ex.getClass().getSimpleName()
+            );
+        }
+
+        if (ventaFirmaAutomaticaService.isBetaHabilitado()) {
+            try {
+                return ventaRepository.findOneById(venta.getId())
+                        .orElse(venta);
+            } catch (Exception ex) {
+                log.warn("No se pudo recargar el estado fiscal de venta {}",
+                        venta.getId());
+            }
+        }
+
+        return venta;
+    }
+
     private Venta recuperarVentaGuardada(String idempotencyKey) {
 
         return ventaPersistenciaService
@@ -186,10 +227,11 @@ public class VentaServiceImpl implements VentaService {
         Venta existente = verificarOperacionExistente(reserva);
 
         if (existente != null) {
-            return existente;
+            return intentarEmisionAutomatica(existente);
         }
 
         Long operacionId = reserva.operacion().getId();
+        Venta guardada;
 
         try {
 
@@ -237,7 +279,7 @@ public class VentaServiceImpl implements VentaService {
                 );
             }
 
-            Venta guardada =
+            guardada =
                     ventaPersistenciaService.guardarVenta(
                             venta,
                             clave
@@ -247,8 +289,6 @@ public class VentaServiceImpl implements VentaService {
                     operacionId,
                     guardada.getId()
             );
-
-            return guardada;
 
         } catch (Exception ex) {
 
@@ -276,6 +316,8 @@ public class VentaServiceImpl implements VentaService {
                     ex
             );
         }
+
+        return intentarEmisionAutomatica(guardada);
     }
 
     @Override
@@ -285,7 +327,8 @@ public class VentaServiceImpl implements VentaService {
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Venta no encontrada"));
         if (venta.isValidadoSunat() || (venta.getEstadoSunat() != null
                 && venta.getEstadoSunat() != EstadoSunat.PENDIENTE
-                && venta.getEstadoSunat() != EstadoSunat.NO_APLICA)) throw new ResponseStatusException(HttpStatus.CONFLICT, "Un comprobante fiscal requiere su proceso de baja o nota de credito");
+                && venta.getEstadoSunat() != EstadoSunat.NO_APLICA
+                && venta.getEstadoSunat() != EstadoSunat.ACEPTADO_BETA)) throw new ResponseStatusException(HttpStatus.CONFLICT, "Un comprobante fiscal requiere su proceso de baja o nota de credito");
         if (venta.getEstadoPago() != null && !"PENDIENTE".equals(venta.getEstadoPago())) throw new ResponseStatusException(HttpStatus.CONFLICT, "Revise el pago antes de anular esta venta");
         if (venta.getEstado() == EstadoVenta.ANULADA) return venta;
 

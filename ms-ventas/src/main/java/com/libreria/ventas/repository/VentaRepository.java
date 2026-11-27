@@ -37,13 +37,14 @@ public interface VentaRepository extends JpaRepository<Venta, Long>, JpaSpecific
 
     @Modifying(clearAutomatically = true)
     @Query("""
-        UPDATE Venta v
-        SET v.estadoSunat = :nuevo
-        WHERE v.id = :id
-          AND v.estadoSunat = :anterior
-          AND v.estado = :estadoVenta
-          AND v.tipoComprobante <> :excluido
-        """)
+    UPDATE Venta v
+    SET v.estadoSunat = :nuevo
+    WHERE v.id = :id
+      AND v.estadoSunat = :anterior
+      AND v.estado = :estadoVenta
+      AND v.tipoComprobante <> :excluido
+      AND v.validadoSunat = false
+    """)
     int reservarEmisionFiscal(
             @Param("id") Long id,
             @Param("anterior") EstadoSunat anterior,

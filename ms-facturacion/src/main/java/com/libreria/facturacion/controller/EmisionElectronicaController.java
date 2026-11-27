@@ -50,11 +50,17 @@ public class EmisionElectronicaController {
         return emitir(factura, false);
     }
 
-    ResultadoEmision emitirInternaBeta(FacturaPruebaRequest factura) {
+    ResultadoEmision emitirInternaBeta(
+            FacturaPruebaRequest factura
+    ) {
         return emitir(factura, true);
     }
 
-    private ResultadoEmision emitir(FacturaPruebaRequest factura, boolean interno) {
+    private ResultadoEmision emitir(
+            FacturaPruebaRequest factura,
+            boolean interno
+    ) {
+
         if (!habilitado) {
             throw new ResponseStatusException(
                     HttpStatus.SERVICE_UNAVAILABLE,
@@ -70,15 +76,65 @@ public class EmisionElectronicaController {
                     "Configuracion fiscal incompleta");
         }
 
-        boolean legacy = factura.detalles()!=null && factura.detalles().size()==1 &&
-                "Producto de prueba".equals(factura.detalles().get(0).descripcion());
-        boolean catalogo = interno && factura.detalles()!=null && !factura.detalles().isEmpty() && factura.detalles().size()<=50
-                && factura.detalles().stream().map(FacturaPruebaRequest.Detalle::descripcion).distinct().count()==factura.detalles().size()
-                && factura.detalles().stream().allMatch(d -> com.libreria.facturacion.service.CatalogoBeta.valida(
-                    d.descripcion(),d.precioUnitario(),d.cantidad(),d.afectacionIgv()==null?null:d.afectacionIgv().name()));
-        boolean boleta = interno && catalogo && "03".equals(factura.tipoComprobante())
+        // Compatibilidad con las pruebas originales.
+
+        boolean legacy = factura.detalles() != null
+                && factura.detalles().size() == 1
+                && "Producto de prueba".equals(
+                factura.detalles().get(0).descripcion());
+
+        // Catalogo original del laboratorio Beta.
+
+        boolean catalogoLaboratorio = interno
+                && factura.detalles() != null
+                && !factura.detalles().isEmpty()
+                && factura.detalles().size() <= 50
+                && factura.detalles().stream()
+                .map(FacturaPruebaRequest.Detalle::descripcion)
+                .distinct().count() == factura.detalles().size()
+                && factura.detalles().stream().allMatch(d ->
+                com.libreria.facturacion.service.CatalogoBeta.valida(
+                        d.descripcion(),
+                        d.precioUnitario(),
+                        d.cantidad(),
+                        d.afectacionIgv() == null
+                                ? null
+                                : d.afectacionIgv().name()
+                ));
+
+        // Catalogo sintetico generado desde el flujo integrado
+        // de ventas de Maranatha Store.
+        // Solo se permite mediante autenticacion interna.
+
+        boolean catalogoIntegrado = interno
+                && factura.detalles() != null
+                && !factura.detalles().isEmpty()
+                && factura.detalles().size() <= 50
+                && factura.detalles().stream()
+                .map(FacturaPruebaRequest.Detalle::descripcion)
+                .distinct().count() == factura.detalles().size()
+                && factura.detalles().stream().allMatch(d ->
+                d.descripcion() != null
+                        && d.descripcion().matches(
+                        "Producto de prueba [0-9]{1,3}")
+                        && d.precioUnitario() != null
+                        && d.precioUnitario().signum() > 0
+                        && d.cantidad() != null
+                        && d.cantidad() > 0
+                        && d.afectacionIgv() != null
+        );
+
+        boolean catalogo =
+                catalogoLaboratorio || catalogoIntegrado;
+
+        boolean boleta = interno
+                && catalogo
+                && "03".equals(factura.tipoComprobante())
                 && "B9B1".equals(factura.serie());
+
         // Solo datos sinteticos del escenario de pruebas.
+        // No se permite enviar datos personales reales.
+
         if (!"20123456786".equals(factura.rucEmisor())
                 || !"20123456786".equals(factura.rucCliente())
                 || (!"01".equals(factura.tipoComprobante()) && !boleta)
@@ -93,11 +149,20 @@ public class EmisionElectronicaController {
                     "Solo se permiten facturas sinteticas Beta");
         }
 
-        if (catalogo && (!(boleta ? "B9B1" : "F9B1").equals(factura.serie()) || !"6".equals(factura.tipoDocumentoCliente())
-                || factura.numero()==null || !factura.numero().matches("[0-9]{8}")
-                || factura.direccionEmisor()!=null)) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,"Identidad de laboratorio invalida");
+        // Validar series, correlativos e identidad de prueba.
+
+        if (catalogo
+                && (!(boleta ? "B9B1" : "F9B1").equals(factura.serie())
+                || !"6".equals(factura.tipoDocumentoCliente())
+                || factura.numero() == null
+                || !factura.numero().matches("[0-9]{8}")
+                || factura.direccionEmisor() != null)) {
+
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST,
+                    "Identidad de laboratorio invalida");
         }
+
         Path rutaCertificado = Path.of(certificado);
         Path rutaXsd = Path.of(xsd);
 
@@ -113,6 +178,8 @@ public class EmisionElectronicaController {
 
         try {
 
+            // Generar XML, firmar, validar y enviar a SUNAT Beta.
+
             CdrService.ResultadoCdr resultado =
                     emisionService.emitirBeta(
                             factura,
@@ -121,13 +188,29 @@ public class EmisionElectronicaController {
                             rutaXsd
                     );
 
-            // No confirmar codigo 0 hasta verificar XML firmado, CDR y correlativo archivados.
-            if ("0".equals(resultado.codigo()) && (catalogo || "F9B1".equals(factura.serie()))) {
-                var evidencia = new ComprobanteBetaArchivadoController(
-                        new com.libreria.facturacion.service.QrFiscalService(), directorio);
-                var vista = evidencia.consultarSerie(factura.serie(), factura.numero());
-                if (!"ACEPTADO_BETA".equals(vista.estadoSunat()) || vista.validezFiscal())
-                    throw new IllegalStateException("Evidencia Beta no confirmada");
+            // No confirmar codigo 0 hasta verificar XML firmado,
+            // CDR y correlativo archivados.
+
+            if ("0".equals(resultado.codigo())
+                    && (catalogo || "F9B1".equals(factura.serie()))) {
+
+                var evidencia =
+                        new ComprobanteBetaArchivadoController(
+                                new com.libreria.facturacion.service.QrFiscalService(),
+                                directorio
+                        );
+
+                var vista = evidencia.consultarSerie(
+                        factura.serie(),
+                        factura.numero()
+                );
+
+                if (!"ACEPTADO_BETA".equals(vista.estadoSunat())
+                        || vista.validezFiscal()) {
+
+                    throw new IllegalStateException(
+                            "Evidencia Beta no confirmada");
+                }
             }
 
             return new ResultadoEmision(

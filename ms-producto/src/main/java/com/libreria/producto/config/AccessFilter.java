@@ -36,7 +36,10 @@ public class AccessFilter extends OncePerRequestFilter {
      role=claims.get("role",String.class);
      if(claims.getSubject()==null || claims.getExpiration()==null || !("ROLE_ADMIN".equals(role)||"ROLE_VENDEDOR".equals(role)))throw new IllegalArgumentException();
    }catch(Exception e){deny(res,401,"Token requerido o inválido");return;}
-   boolean adminOnly=!method.equals("GET");
+   boolean vendedorPermitido = method.equals("POST") && (p.equals("/productos") || p.equals("/productos/importar") || p.matches("/productos/\\d+/stock/reponer"));
+   boolean ajuste = method.equals("POST") && p.matches("/productos/\\d+/ajustes");
+   if (ajuste) req.setAttribute("rolAjusteInventario", role);
+   boolean adminOnly=!method.equals("GET") && !vendedorPermitido && !ajuste;
    if(adminOnly && !"ROLE_ADMIN".equals(role)){deny(res,403,"Operación reservada al administrador");return;}
    chain.doFilter(req,res);
  }

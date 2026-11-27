@@ -1,3 +1,4 @@
+
 package com.libreria.ventas.client;
 
 import org.springframework.beans.factory.annotation.Value;
@@ -35,6 +36,8 @@ public class FacturacionClient {
                 .build();
     }
 
+    // EMISION DE COMPROBANTES SUNAT BETA
+
     public ResultadoEmision emitirBeta(
             SolicitudEmision solicitud
     ) {
@@ -59,6 +62,37 @@ public class FacturacionClient {
 
             throw new IllegalStateException(
                     "Facturacion devolvio una respuesta vacia");
+        }
+
+        return resultado;
+    }
+
+    // FIRMA DIGITAL LOCAL DE COMPROBANTES COMERCIALES
+
+    public ResultadoFirma firmarLocal(
+            SolicitudEmision solicitud
+    ) {
+
+        HttpHeaders headers = crearHeaders();
+
+        HttpEntity<SolicitudEmision> entidad =
+                new HttpEntity<>(solicitud, headers);
+
+        ResponseEntity<ResultadoFirma> respuesta =
+                restTemplate.exchange(
+                        baseUrl
+                                + "/internal/facturacion/emision/local",
+                        HttpMethod.POST,
+                        entidad,
+                        ResultadoFirma.class
+                );
+
+        ResultadoFirma resultado = respuesta.getBody();
+
+        if (resultado == null) {
+
+            throw new IllegalStateException(
+                    "El servicio de facturacion no devolvio la firma local");
         }
 
         return resultado;
@@ -91,6 +125,8 @@ public class FacturacionClient {
         }
     }
 
+    // CONFIGURACION DE AUTENTICACION INTERNA
+
     private HttpHeaders crearHeaders() {
 
         if (internalToken == null
@@ -112,6 +148,8 @@ public class FacturacionClient {
         return headers;
     }
 
+    // SOLICITUD DE EMISION DEL COMPROBANTE
+
     public record SolicitudEmision(
             String rucEmisor,
             String razonSocialEmisor,
@@ -126,12 +164,16 @@ public class FacturacionClient {
             LocalDate fechaEmision
     ) {}
 
+    // DETALLE DE PRODUCTOS DEL COMPROBANTE
+
     public record Detalle(
             String descripcion,
             Integer cantidad,
             BigDecimal precioUnitario,
             String afectacionIgv
     ) {}
+
+    // RESPUESTA DE EMISION SUNAT BETA
 
     public record ResultadoEmision(
             String ambiente,
@@ -140,5 +182,20 @@ public class FacturacionClient {
             String mensaje,
             String serie,
             String numero
+    ) {}
+
+    // RESPUESTA DE FIRMA DIGITAL LOCAL
+
+    public record ResultadoFirma(
+            String ambiente,
+            String estado,
+            boolean validezFiscal,
+            String serie,
+            String numero,
+            String igv,
+            String total,
+            String hash,
+            String contenidoQr,
+            String xmlFirmado
     ) {}
 }

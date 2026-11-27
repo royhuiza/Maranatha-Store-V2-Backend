@@ -11,7 +11,7 @@ import static org.mockito.Mockito.*;
 class AccessFilterTest {
  private final String secret="MaranathaStoreClaveSuperSeguraJWT2026Maranatha";
  @Test void directAnonymousRequestIsRejected()throws Exception{check(null,401,false);}
- @Test void sellerCannotModifyInventoryEvenDirectly()throws Exception{check("ROLE_VENDEDOR",403,false);}
+ @Test void sellerCanCreateProduct()throws Exception{check("ROLE_VENDEDOR",200,true);}
  @Test void adminCanModifyInventory()throws Exception{check("ROLE_ADMIN",200,true);}
  private void check(String role,int status,boolean allowed)throws Exception{var req=new MockHttpServletRequest("POST","/productos");if(role!=null){var jwt=Jwts.builder().setSubject("test").claim("role",role).setExpiration(new Date(System.currentTimeMillis()+60000)).signWith(Keys.hmacShaKeyFor(secret.getBytes(StandardCharsets.UTF_8))).compact();req.addHeader("Authorization","Bearer "+jwt);}var res=new MockHttpServletResponse();var chain=mock(FilterChain.class);new AccessFilter(secret).doFilter(req,res,chain);assertEquals(status,res.getStatus());if(allowed)verify(chain).doFilter(req,res);else verifyNoInteractions(chain);}
 }

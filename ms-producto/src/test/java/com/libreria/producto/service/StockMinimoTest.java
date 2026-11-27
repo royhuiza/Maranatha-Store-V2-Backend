@@ -3,6 +3,7 @@ package com.libreria.producto.service;
 import com.libreria.producto.model.Producto;
 import com.libreria.producto.repository.ProductoRepository;
 import org.junit.jupiter.api.Test;
+import org.springframework.jdbc.core.JdbcTemplate;
 
 import java.math.BigDecimal;
 import java.util.List;
@@ -24,22 +25,22 @@ class StockMinimoTest {
     }
 
     @Test
-    void crearSinStockMinimoUsaCinco() {
+    void crearSinStockMinimoUsaDiez() {
         var repo = mock(ProductoRepository.class);
         when(repo.save(any())).thenAnswer(i -> i.getArgument(0));
         var p = producto(10, 5);
         p.setStockMinimo(null);
-        assertEquals(5, new ProductoServiceImpl(repo, null, null, null).crearProducto(p).getStockMinimo());
+        assertEquals(10, new ProductoServiceImpl(repo, null, null, mock(JdbcTemplate.class)).crearProducto(p).getStockMinimo());
     }
 
     @Test
-    void editarCambiaElStockMinimo() {
+    void editarMantieneStockMinimoFijo() {
         var repo = mock(ProductoRepository.class);
         var actual = producto(10, 5);
         when(repo.findByIdForUpdate(1L)).thenReturn(Optional.of(actual));
         when(repo.save(any())).thenAnswer(i -> i.getArgument(0));
-        var editado = new ProductoServiceImpl(repo, null, null, null).actualizarProducto(1L, producto(10, 15));
-        assertEquals(15, editado.getStockMinimo());
+        var editado = new ProductoServiceImpl(repo, null, null, mock(JdbcTemplate.class)).actualizarProducto(1L, producto(10, 15));
+        assertEquals(10, editado.getStockMinimo());
         assertEquals("STOCK_BAJO", editado.getEstadoStock());
     }
 
@@ -48,7 +49,7 @@ class StockMinimoTest {
         var repo = mock(ProductoRepository.class);
         var bajo = producto(2, 5);
         when(repo.findStockBajo()).thenReturn(List.of(bajo));
-        assertEquals(List.of(bajo), new ProductoServiceImpl(repo, null, null, null).listarStockBajo());
+        assertEquals(List.of(bajo), new ProductoServiceImpl(repo, null, null, mock(JdbcTemplate.class)).listarStockBajo());
     }
 
     private Producto producto(int stock, int minimo) {

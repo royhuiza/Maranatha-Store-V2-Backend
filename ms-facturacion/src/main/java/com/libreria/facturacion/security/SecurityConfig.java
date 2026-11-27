@@ -54,7 +54,8 @@ public class SecurityConfig {
                         .dispatcherTypeMatchers(DispatcherType.ERROR).permitAll()
                         .requestMatchers(
                                 HttpMethod.POST,
-                                "/internal/facturacion/emision/beta"
+                                "/internal/facturacion/emision/beta",
+                                "/internal/facturacion/emision/local"
                         ).hasRole("SERVICE_VENTAS")
 
                         .requestMatchers("/internal/**").denyAll()
@@ -74,7 +75,8 @@ public class SecurityConfig {
                         .requestMatchers(
                                 HttpMethod.GET,
                                 "/api/facturacion/ruc/**",
-                                "/api/facturacion/dni/**"
+                                "/api/facturacion/dni/**",
+                                "/api/facturacion/laboratorio/comprobantes/{serie}/{numero}"
                         ).hasAnyRole("ADMIN", "VENDEDOR")
 
                         .requestMatchers(

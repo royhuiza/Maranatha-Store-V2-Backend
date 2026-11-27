@@ -204,8 +204,12 @@ public class ProductoController {
     @Operation(summary = "Realizar ajuste de inventario")
     public Producto ajustar(
             @PathVariable Long id,
-            @Valid @RequestBody AjusteStockRequest ajuste) {
+            @Valid @RequestBody AjusteStockRequest ajuste,
+            @RequestAttribute(name = "rolAjusteInventario", required = false) String rol) {
 
+        if (!"ROLE_ADMIN".equals(rol) && !("ROLE_VENDEDOR".equals(rol) && ajuste.tipo() == AjusteStockRequest.Tipo.REPONER)) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Operación reservada al administrador");
+        }
         return service.ajustarStock(id, ajuste);
     }
 

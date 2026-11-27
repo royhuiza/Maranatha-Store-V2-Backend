@@ -1,13 +1,16 @@
+
 package com.libreria.facturacion.service;
 
 import org.springframework.stereotype.Service;
 import org.w3c.dom.Document;
 import org.w3c.dom.Node;
+import org.w3c.dom.NodeList;
 import org.xml.sax.InputSource;
 
 import javax.xml.XMLConstants;
 import javax.xml.crypto.dsig.*;
 import javax.xml.crypto.dsig.dom.DOMSignContext;
+import javax.xml.crypto.dsig.dom.DOMValidateContext;
 import javax.xml.crypto.dsig.keyinfo.*;
 import javax.xml.crypto.dsig.spec.*;
 import javax.xml.parsers.DocumentBuilderFactory;
@@ -52,19 +55,7 @@ public class FirmaDigitalService {
 
         certificadoX509.checkValidity();
 
-        DocumentBuilderFactory factory =
-                DocumentBuilderFactory.newInstance();
-
-        factory.setNamespaceAware(true);
-        factory.setFeature(XMLConstants.FEATURE_SECURE_PROCESSING, true);
-        factory.setFeature(
-                "http://apache.org/xml/features/disallow-doctype-decl",
-                true);
-        factory.setAttribute(XMLConstants.ACCESS_EXTERNAL_DTD, "");
-        factory.setAttribute(XMLConstants.ACCESS_EXTERNAL_SCHEMA, "");
-
-        Document documento = factory.newDocumentBuilder()
-                .parse(new InputSource(new StringReader(xml)));
+        Document documento = leerXml(xml);
 
         Node extension = documento
                 .getElementsByTagNameNS(EXT_NS, "ExtensionContent")
@@ -148,6 +139,139 @@ public class FirmaDigitalService {
                 new DOMSource(documento),
                 new StreamResult(salida));
 
-        return salida.toString();
+        String xmlFirmado = salida.toString();
+
+        // VERIFICAR LA FIRMA DESPUES DE SERIALIZAR EL XML.
+
+        verificarFirma(xmlFirmado, certificadoX509);
+
+        return xmlFirmado;
+    }
+
+    // VERIFICACION CRIPTOGRAFICA DE LA FIRMA DIGITAL.
+
+    public void verificarFirma(
+            String xmlFirmado,
+            X509Certificate certificadoX509
+    ) throws Exception {
+
+        certificadoX509.checkValidity();
+
+        Document documento = leerXml(xmlFirmado);
+
+        NodeList firmas = documento.getElementsByTagNameNS(
+                XMLSignature.XMLNS,
+                "Signature"
+        );
+
+        if (firmas.getLength() != 1) {
+
+            throw new IllegalStateException(
+                    "El XML debe contener una unica firma digital"
+            );
+        }
+
+        Node nodoFirma = firmas.item(0);
+
+        Node padre = nodoFirma.getParentNode();
+
+        if (padre == null
+                || !EXT_NS.equals(padre.getNamespaceURI())
+                || !"ExtensionContent".equals(padre.getLocalName())) {
+
+            throw new IllegalStateException(
+                    "Ubicacion de firma digital invalida"
+            );
+        }
+
+        DOMValidateContext contexto =
+                new DOMValidateContext(
+                        certificadoX509.getPublicKey(),
+                        nodoFirma
+                );
+
+        contexto.setProperty(
+                "org.jcp.xml.dsig.secureValidation",
+                Boolean.TRUE
+        );
+
+        XMLSignatureFactory firmaFactory =
+                XMLSignatureFactory.getInstance("DOM");
+
+        XMLSignature firma =
+                firmaFactory.unmarshalXMLSignature(contexto);
+
+        SignedInfo informacion = firma.getSignedInfo();
+
+        if (!SignatureMethod.RSA_SHA256.equals(
+                informacion.getSignatureMethod().getAlgorithm())
+                || !CanonicalizationMethod.INCLUSIVE.equals(
+                informacion.getCanonicalizationMethod().getAlgorithm())
+                || informacion.getReferences().size() != 1) {
+
+            throw new IllegalStateException(
+                    "Configuracion criptografica de firma invalida"
+            );
+        }
+
+        Reference referencia =
+                informacion.getReferences().get(0);
+
+        if (!"".equals(referencia.getURI())
+                || !DigestMethod.SHA256.equals(
+                referencia.getDigestMethod().getAlgorithm())
+                || referencia.getTransforms().size() != 1
+                || !Transform.ENVELOPED.equals(
+                referencia.getTransforms().get(0).getAlgorithm())) {
+
+            throw new IllegalStateException(
+                    "Referencia criptografica del XML invalida"
+            );
+        }
+
+        if (!firma.validate(contexto)) {
+
+            throw new IllegalStateException(
+                    "La firma digital del XML no es valida"
+            );
+        }
+    }
+
+    // LECTURA SEGURA DE DOCUMENTOS XML.
+
+    private Document leerXml(
+            String xml
+    ) throws Exception {
+
+        DocumentBuilderFactory factory =
+                DocumentBuilderFactory.newInstance();
+
+        factory.setNamespaceAware(true);
+
+        factory.setFeature(
+                XMLConstants.FEATURE_SECURE_PROCESSING,
+                true
+        );
+
+        factory.setFeature(
+                "http://apache.org/xml/features/disallow-doctype-decl",
+                true
+        );
+
+        factory.setAttribute(
+                XMLConstants.ACCESS_EXTERNAL_DTD,
+                ""
+        );
+
+        factory.setAttribute(
+                XMLConstants.ACCESS_EXTERNAL_SCHEMA,
+                ""
+        );
+
+        factory.setXIncludeAware(false);
+        factory.setExpandEntityReferences(false);
+
+        return factory.newDocumentBuilder()
+                .parse(new InputSource(new StringReader(xml)));
     }
 }

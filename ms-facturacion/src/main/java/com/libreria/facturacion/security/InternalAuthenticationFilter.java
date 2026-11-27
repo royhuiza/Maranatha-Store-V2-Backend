@@ -29,8 +29,13 @@ public class InternalAuthenticationFilter
             HttpServletRequest request
     ) {
 
-        return !"/internal/facturacion/emision/beta"
-                .equals(request.getServletPath())
+        String ruta = request.getServletPath();
+
+        boolean rutaInterna =
+                "/internal/facturacion/emision/beta".equals(ruta)
+                        || "/internal/facturacion/emision/local".equals(ruta);
+
+        return !rutaInterna
                 || !"POST".equals(request.getMethod());
     }
 
