@@ -147,6 +147,7 @@ services:
       EUREKA_ENABLED: "false"
       FACTURACION_SERVICE_URL: http://ms-facturacion:8085
       FACTURACION_INTERNAL_TOKEN: ${FACTURACION_INTERNAL_TOKEN:-}
+      FACTURACION_BETA_AUTOMATICA_ENABLED: ${FACTURACION_BETA_AUTOMATICA_ENABLED:-false}
     ports: ["8084:8084"]
     depends_on:
       maranatha-postgres:
